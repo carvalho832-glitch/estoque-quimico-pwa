@@ -59,11 +59,15 @@ function extractCemb(lines: string[]): string {
 }
 
 function extractName(lines: string[]): string {
-  const description = valueAfterLabel(lines, /^\s*DESCRI[CÇ][AÃ]O\s*/i);
-  if (description) return description;
+  // Neste padrão de etiqueta, PART NUMBER representa o nome comercial do produto.
+  const partNumber = valueAfterLabel(lines, /^\s*PART\s*NUMBER\s*/i);
+  if (partNumber) return partNumber.toUpperCase();
 
   const productName = valueAfterLabel(lines, /^\s*(PRODUTO|PRODUCT|NOME)\s*/i);
   if (productName) return productName;
+
+  const description = valueAfterLabel(lines, /^\s*DESCRI[CÇ][AÃ]O\s*/i);
+  if (description) return description;
 
   return (
     lines.find(
