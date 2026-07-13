@@ -21,6 +21,21 @@ function extractValue(text: string, labels: string[]): string {
   return '';
 }
 
+function normalizeNumericCode(raw: string): string {
+  return raw
+    .toUpperCase()
+    .replace(/[OQ]/g, '0')
+    .replace(/[IL|]/g, '1')
+    .replace(/[^0-9]/g, '');
+}
+
+function extractCemb(text: string): string {
+  // Alguns OCRs confundem o B de CEMB com o número 8 e dígitos com letras.
+  const match = text.match(/C\s*E\s*M\s*[B8]\s*[:#-]?\s*([0-9OQIL|]{5,})/i);
+  if (!match?.[1]) return '';
+  return normalizeNumericCode(match[1]);
+}
+
 function extractName(lines: string[]): string {
   const namedLine = lines.find((line) => /^(produto|product|nome)\s*[:#-]/i.test(line));
   if (namedLine) return namedLine.replace(/^(produto|product|nome)\s*[:#-]\s*/i, '').trim();
@@ -29,7 +44,7 @@ function extractName(lines: string[]): string {
     lines.find(
       (line) =>
         line.length >= 4 &&
-        !/(lote|lot|batch|ecode|c[oó]digo|valid|venc|exp|perigo|danger|atenção|warning)/i.test(line) &&
+        !/(lote|lot|batch|ecode|cemb|c[oó]digo|valid|venc|exp|perigo|danger|atenção|warning)/i.test(line) &&
         /[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ]/i.test(line),
     ) ?? ''
   );
@@ -54,7 +69,7 @@ export function parseLabelText(text: string): Partial<ProductDraft> {
 
   return {
     name: extractName(lines),
-    ecode: extractValue(cleaned, ['E\\s*CODE', 'ECODE', 'C[ÓO]DIGO']),
+    ecode: extractCemb(cleaned) || extractValue(cleaned, ['C\\s*E\\s*M\\s*B', 'E\\s*CODE', 'ECODE', 'C[ÓO]DIGO']),
     batch: extractValue(cleaned, ['LOTE', 'LOT', 'BATCH']),
     expiryDate: extractExpiry(cleaned, lines),
   };
