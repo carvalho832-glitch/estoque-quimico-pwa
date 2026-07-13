@@ -4,10 +4,11 @@ import { formatDate, getExpiryLabel } from './expiry';
 
 export function exportProductsToExcel(products: Product[]): void {
   const rows = products.map((product) => ({
-    Produto: product.name,
-    CEMB: product.ecode,
+    'Ecode/Material': product.ecode,
     Lote: product.batch,
-    Validade: formatDate(product.expiryDate),
+    DV: formatDate(product.expiryDate),
+    Produto: product.name,
+    Docmat: product.docmat ?? '',
     Quantidade: product.quantity,
     Local: product.location,
     Status: getExpiryLabel(product.expiryDate),
@@ -17,10 +18,11 @@ export function exportProductsToExcel(products: Product[]): void {
 
   const worksheet = XLSX.utils.json_to_sheet(rows);
   worksheet['!cols'] = [
-    { wch: 28 },
-    { wch: 16 },
+    { wch: 18 },
     { wch: 18 },
     { wch: 14 },
+    { wch: 28 },
+    { wch: 18 },
     { wch: 12 },
     { wch: 20 },
     { wch: 22 },
