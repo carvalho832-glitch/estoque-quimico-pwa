@@ -108,7 +108,7 @@ export default function App() {
         batch: fields.batch || current.batch,
         expiryDate: fields.expiryDate || current.expiryDate,
       }));
-      setMessage('Leitura concluída. Confira todos os campos antes de salvar.');
+      setMessage('Leitura concluída. Confira e edite os campos antes de salvar.');
     } catch (error) {
       console.error(error);
       setMessage('Não foi possível ler o rótulo. Preencha os campos manualmente.');
@@ -123,7 +123,7 @@ export default function App() {
     setMessage('');
 
     if (!draft.name.trim() || !draft.ecode.trim() || !draft.batch.trim() || !draft.expiryDate) {
-      setMessage('Preencha nome, Ecode, lote e validade.');
+      setMessage('Preencha nome, CEMB, lote e validade.');
       return;
     }
 
@@ -143,7 +143,7 @@ export default function App() {
     const duplicate = products.find(
       (item) => item.id !== product.id && item.ecode.toUpperCase() === product.ecode && item.batch.toUpperCase() === product.batch,
     );
-    if (duplicate && !window.confirm('Já existe um item com o mesmo Ecode e lote. Deseja salvar mesmo assim?')) return;
+    if (duplicate && !window.confirm('Já existe um item com o mesmo CEMB e lote. Deseja salvar mesmo assim?')) return;
 
     await saveProduct(product);
     await refreshProducts();
@@ -230,16 +230,16 @@ export default function App() {
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <label className="field field-wide">
-                <span>Nome do produto *</span>
-                <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Ex.: Primer epóxi" />
+                <span>Nome do produto * <small>(editável)</small></span>
+                <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Ex.: ATR 1000" />
               </label>
               <label className="field">
-                <span>Ecode *</span>
-                <input value={draft.ecode} onChange={(event) => updateDraft('ecode', event.target.value)} placeholder="Ex.: EC458721" />
+                <span>CEMB *</span>
+                <input value={draft.ecode} onChange={(event) => updateDraft('ecode', event.target.value)} placeholder="Ex.: 1453537" inputMode="numeric" />
               </label>
               <label className="field">
                 <span>Lote *</span>
-                <input value={draft.batch} onChange={(event) => updateDraft('batch', event.target.value)} placeholder="Ex.: LT260713" />
+                <input value={draft.batch} onChange={(event) => updateDraft('batch', event.target.value)} placeholder="Ex.: C031996704" />
               </label>
               <label className="field">
                 <span>Data de validade *</span>
@@ -259,7 +259,7 @@ export default function App() {
               </label>
             </div>
 
-            <p className="confirmation-note">⚠️ Confira Ecode, lote e validade. O OCR apenas sugere os dados.</p>
+            <p className="confirmation-note">⚠️ Confira e edite nome, CEMB, lote e validade. O OCR apenas sugere os dados.</p>
             <button className="primary-button" type="submit">{editingId ? 'Salvar alterações' : 'Confirmar e salvar'}</button>
           </form>
 
@@ -279,7 +279,7 @@ export default function App() {
 
           <label className="search-box">
             <span>🔎</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por produto, Ecode, lote ou local" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por produto, CEMB, lote ou local" />
           </label>
 
           {loading ? (
@@ -295,7 +295,7 @@ export default function App() {
                     <div className="product-card-top">
                       <div>
                         <h3>{product.name}</h3>
-                        <p>Ecode: <strong>{product.ecode}</strong> · Lote: <strong>{product.batch}</strong></p>
+                        <p>CEMB: <strong>{product.ecode}</strong> · Lote: <strong>{product.batch}</strong></p>
                       </div>
                       <span className={`status-badge status-${level}`}>{getExpiryLabel(product.expiryDate)}</span>
                     </div>
