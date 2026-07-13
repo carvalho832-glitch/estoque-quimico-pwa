@@ -28,5 +28,6 @@ export type InventoryQrData = {
   ecode: string;
   supplierBatch: string;
   packageVolume: string;
+  expiryDate: string;
   raw: string;
 };
