@@ -73,38 +73,41 @@ function drawHeader(doc: jsPDF, options: Required<ReportOptions>): void {
   const right = 8;
   const top = 9;
   const headerHeight = 17;
-  const kitWidth = 49;
+  const kitWidth = 42;
   const contentWidth = pageWidth - left - right;
 
   doc.setTextColor(0, 0, 0);
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.25);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(6.3);
 
   const updatedBy = options.updatedBy.trim() || '________________';
   const checkedBy = options.checkedBy.trim() || '________________';
   doc.text(
-    `ATUALIZADO POR: ${updatedBy} / CHECADO POR: ${checkedBy}   ${formatToday()}`,
-    pageWidth - right,
+    `ATUALIZADO POR: ${updatedBy} / CHECADO POR: ${checkedBy}`,
+    left,
     5.8,
-    { align: 'right' },
   );
+  doc.text(formatToday(), pageWidth - right, 5.8, { align: 'right' });
 
   doc.rect(left, top, kitWidth, headerHeight);
   doc.rect(left + kitWidth, top, contentWidth - kitWidth, headerHeight);
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.text('KIT', left + kitWidth / 2, top + 5.2, { align: 'center' });
-  doc.setFontSize(9);
-  doc.text(options.kitCode, left + kitWidth / 2, top + 11.5, { align: 'center' });
+  doc.setFontSize(8.2);
+  doc.text(options.kitCode, left + kitWidth / 2, top + 11.5, {
+    align: 'center',
+    maxWidth: kitWidth - 4,
+  });
 
-  doc.setFontSize(11.5);
+  doc.setFontSize(9.5);
   doc.text(
     options.title,
     left + kitWidth + (contentWidth - kitWidth) / 2,
     top + 10.3,
-    { align: 'center', maxWidth: contentWidth - kitWidth - 8 },
+    { align: 'center', maxWidth: contentWidth - kitWidth - 6 },
   );
 }
 
@@ -127,7 +130,7 @@ function drawFooter(doc: jsPDF, options: Required<ReportOptions>): void {
 export function exportProductsToPdf(products: Product[], reportOptions: ReportOptions = {}): void {
   const options = { ...DEFAULT_OPTIONS, ...reportOptions };
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4',
     compress: true,
@@ -191,11 +194,11 @@ export function exportProductsToPdf(products: Product[], reportOptions: ReportOp
     showHead: 'everyPage',
     styles: {
       font: 'helvetica',
-      fontSize: 7.2,
+      fontSize: 6.5,
       textColor: [0, 0, 0],
       lineColor: [0, 0, 0],
       lineWidth: 0.18,
-      cellPadding: { top: 1.05, right: 1, bottom: 1.05, left: 1 },
+      cellPadding: { top: 1.05, right: 0.8, bottom: 1.05, left: 0.8 },
       valign: 'middle',
       halign: 'center',
       overflow: 'linebreak',
@@ -210,13 +213,14 @@ export function exportProductsToPdf(products: Product[], reportOptions: ReportOp
       lineColor: [0, 0, 0],
       lineWidth: 0.25,
       minCellHeight: 6.2,
+      fontSize: 6.7,
     },
     columnStyles: {
-      0: { cellWidth: 32 },
-      1: { cellWidth: 41 },
-      2: { cellWidth: 135 },
-      3: { cellWidth: 24 },
-      4: { cellWidth: 43 },
+      0: { cellWidth: 28 },
+      1: { cellWidth: 37 },
+      2: { cellWidth: 78 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 33 },
     },
     didDrawPage: () => {
       drawHeader(doc, options);
