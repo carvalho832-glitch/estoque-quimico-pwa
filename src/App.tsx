@@ -1,10 +1,11 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import QrLiveScanner from './components/QrLiveScanner';
 import { listProducts, removeProduct, saveProduct } from './lib/db';
 import { exportProductsToExcel } from './lib/excel';
 import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
-import { readInventoryQr } from './lib/qr';
-import type { Product, ProductDraft } from './types';
+import { parseInventoryQr, readInventoryQr } from './lib/qr';
+import type { InventoryQrData, Product, ProductDraft } from './types';
 
 const EMPTY_DRAFT: ProductDraft = {
   name: '',
@@ -31,6 +32,10 @@ function productToDraft(product: Product): ProductDraft {
   return draft;
 }
 
+function releasePreview(url: string): void {
+  if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+}
+
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [draft, setDraft] = useState<ProductDraft>(EMPTY_DRAFT);
@@ -38,6 +43,7 @@ export default function App() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
   const [qrRead, setQrRead] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [qrLoading, setQrLoading] = useState(false);
@@ -56,9 +62,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
+    return () => releasePreview(previewUrl);
   }, [previewUrl]);
 
   const filteredProducts = useMemo(() => {
@@ -89,20 +93,56 @@ export default function App() {
     setDraft((current) => ({ ...current, [field]: value }));
   }
 
+  function applyQrData(qr: InventoryQrData, imageName: string) {
+    const existing = products.find(
+      (product) => product.ecode.toUpperCase() === qr.ecode && product.batch.toUpperCase() === qr.batch,
+    );
+    const knownProduct = existing ?? products.find((product) => product.ecode.toUpperCase() === qr.ecode);
+    const baseDraft = existing ? productToDraft(existing) : draft;
+
+    setDraft({
+      ...baseDraft,
+      name: existing?.name || draft.name || knownProduct?.name || '',
+      ecode: qr.ecode,
+      docmat: qr.docmat,
+      batch: qr.batch,
+      supplierBatch: qr.supplierBatch,
+      packageVolume: qr.packageVolume,
+      qrPrefix: qr.prefix,
+      qrRaw: qr.raw,
+      expiryDate: qr.expiryDate || existing?.expiryDate || draft.expiryDate,
+      quantity: existing?.quantity ?? draft.quantity ?? 1,
+      location: existing?.location ?? draft.location ?? '',
+      notes: existing?.notes ?? draft.notes ?? '',
+      imageName,
+    });
+
+    setEditingId(existing?.id ?? null);
+    setQrRead(true);
+
+    if (existing) {
+      setMessage('QR lido automaticamente. O registro existente foi aberto para atualização. Confira a DV.');
+    } else if (qr.expiryDate) {
+      setMessage('QR lido automaticamente. Ecode/Material, lote e DV foram preenchidos.');
+    } else {
+      setMessage('QR lido automaticamente. Ecode/Material e lote foram preenchidos. Informe a DV.');
+    }
+  }
+
   function handlePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     setPhoto(file);
     setQrRead(false);
     updateDraft('imageName', file?.name ?? '');
 
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    releasePreview(previewUrl);
     setPreviewUrl(file ? URL.createObjectURL(file) : '');
-    setMessage(file ? 'Foto carregada. Toque em “Ler QR Code”.' : '');
+    setMessage(file ? 'Foto carregada. Toque em “Ler QR da foto”.' : '');
   }
 
-  async function handleQr() {
+  async function handleQrPhoto() {
     if (!photo) {
-      setMessage('Fotografe ou selecione uma etiqueta com QR Code primeiro.');
+      setMessage('Selecione uma foto da etiqueta com QR Code primeiro.');
       return;
     }
 
@@ -111,39 +151,7 @@ export default function App() {
 
     try {
       const qr = await readInventoryQr(photo);
-      const existing = products.find(
-        (product) => product.ecode.toUpperCase() === qr.ecode && product.batch.toUpperCase() === qr.batch,
-      );
-      const knownProduct = existing ?? products.find((product) => product.ecode.toUpperCase() === qr.ecode);
-      const baseDraft = existing ? productToDraft(existing) : draft;
-
-      setDraft({
-        ...baseDraft,
-        name: existing?.name || draft.name || knownProduct?.name || '',
-        ecode: qr.ecode,
-        docmat: qr.docmat,
-        batch: qr.batch,
-        supplierBatch: qr.supplierBatch,
-        packageVolume: qr.packageVolume,
-        qrPrefix: qr.prefix,
-        qrRaw: qr.raw,
-        expiryDate: qr.expiryDate || existing?.expiryDate || draft.expiryDate,
-        quantity: existing?.quantity ?? draft.quantity ?? 1,
-        location: existing?.location ?? draft.location ?? '',
-        notes: existing?.notes ?? draft.notes ?? '',
-        imageName: photo.name,
-      });
-
-      setEditingId(existing?.id ?? null);
-      setQrRead(true);
-
-      if (existing) {
-        setMessage('QR lido. Este Ecode/Material e lote já existem; o registro foi aberto para atualização. Confira a DV.');
-      } else if (qr.expiryDate) {
-        setMessage('QR lido. Ecode/Material, lote e DV foram preenchidos. Confira antes de salvar.');
-      } else {
-        setMessage('QR lido. Ecode/Material e lote foram preenchidos. Informe a DV antes de salvar.');
-      }
+      applyQrData(qr, photo.name);
     } catch (error) {
       console.error(error);
       setQrRead(false);
@@ -153,9 +161,25 @@ export default function App() {
     }
   }
 
+  function handleLiveQr(rawValue: string, snapshotDataUrl: string) {
+    try {
+      const qr = parseInventoryQr(rawValue);
+      releasePreview(previewUrl);
+      setPreviewUrl(snapshotDataUrl);
+      setPhoto(null);
+      setScannerOpen(false);
+      applyQrData(qr, 'captura-qr-camera.jpg');
+    } catch (error) {
+      console.error(error);
+      setScannerOpen(false);
+      setQrRead(false);
+      setMessage(error instanceof Error ? error.message : 'O QR Code lido não possui o formato esperado.');
+    }
+  }
+
   async function handleOcr() {
     if (!photo) {
-      setMessage('Fotografe ou selecione um rótulo primeiro.');
+      setMessage('Selecione uma foto do rótulo primeiro.');
       return;
     }
 
@@ -230,7 +254,8 @@ export default function App() {
     setEditingId(null);
     setPhoto(null);
     setQrRead(false);
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setScannerOpen(false);
+    releasePreview(previewUrl);
     setPreviewUrl('');
   }
 
@@ -253,6 +278,8 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {scannerOpen && <QrLiveScanner onDetected={handleLiveQr} onClose={() => setScannerOpen(false)} />}
+
       <header className="app-header">
         <div>
           <span className="eyebrow">ESTOQUE QUÍMICO</span>
@@ -274,24 +301,32 @@ export default function App() {
           <div className="section-title">
             <div>
               <span className="eyebrow">CADASTRO E ATUALIZAÇÃO</span>
-              <h2>{editingId ? 'Atualizar produto' : 'Ler etiqueta'}</h2>
+              <h2>{editingId ? 'Atualizar produto' : 'Escanear produto'}</h2>
             </div>
             {editingId && <button className="ghost-button" type="button" onClick={resetForm}>Cancelar edição</button>}
           </div>
 
-          <div className="camera-area">
-            <label className="camera-button">
-              <span>📷</span>
-              Fotografar QR
-              <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} />
-            </label>
-            <button className="secondary-button" type="button" onClick={handleQr} disabled={!photo || qrLoading}>
-              {qrLoading ? 'Lendo QR...' : 'Ler QR Code'}
-            </button>
-            <button className="ghost-button" type="button" onClick={handleOcr} disabled={!photo || ocrProgress !== null}>
-              {ocrProgress !== null ? 'Lendo texto...' : 'Usar OCR alternativo'}
-            </button>
-          </div>
+          <button className="live-scanner-button" type="button" onClick={() => setScannerOpen(true)}>
+            <span className="live-scanner-icon">▣</span>
+            <span><strong>Abrir leitor QR</strong><small>Aponte para o código e aguarde a leitura automática</small></span>
+          </button>
+
+          <details className="alternative-reader">
+            <summary>Usar foto ou OCR como alternativa</summary>
+            <div className="camera-area">
+              <label className="secondary-button photo-picker">
+                <span>📷</span>
+                Selecionar foto
+                <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} />
+              </label>
+              <button className="secondary-button" type="button" onClick={handleQrPhoto} disabled={!photo || qrLoading}>
+                {qrLoading ? 'Lendo QR...' : 'Ler QR da foto'}
+              </button>
+              <button className="ghost-button" type="button" onClick={handleOcr} disabled={!photo || ocrProgress !== null}>
+                {ocrProgress !== null ? 'Lendo texto...' : 'Usar OCR'}
+              </button>
+            </div>
+          </details>
 
           {previewUrl && !qrRead && <img className="label-preview" src={previewUrl} alt="Foto da etiqueta selecionada" />}
 
