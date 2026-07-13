@@ -420,26 +420,35 @@ export default function App() {
               {filteredProducts.map((product) => {
                 const level = getExpiryLevel(product.expiryDate);
                 return (
-                  <article className="product-card" key={product.id}>
-                    <div className="product-card-top">
-                      <div>
+                  <details className="product-card" key={product.id}>
+                    <summary className="product-card-summary">
+                      <div className="product-summary-main">
                         <h3>{product.name}</h3>
-                        <p>Ecode/Material: <strong>{product.ecode}</strong> · Lote: <strong>{product.batch}</strong></p>
+                        <div className="product-essential-data">
+                          <span>Ecode: <strong>{product.ecode}</strong></span>
+                          <span>Lote: <strong>{product.batch}</strong></span>
+                        </div>
                       </div>
-                      <span className={`status-badge status-${level}`}>{getExpiryLabel(product.expiryDate)}</span>
+                      <div className="product-summary-status">
+                        <span className={`status-badge status-${level}`}>{getExpiryLabel(product.expiryDate)}</span>
+                        <span className="expand-indicator" aria-hidden="true">⌄</span>
+                      </div>
+                    </summary>
+
+                    <div className="product-card-details">
+                      <dl>
+                        <div><dt>DV</dt><dd>{formatDate(product.expiryDate)}</dd></div>
+                        <div><dt>Quantidade</dt><dd>{product.quantity}</dd></div>
+                        <div><dt>Local</dt><dd>{product.location || 'Não informado'}</dd></div>
+                      </dl>
+                      {product.docmat && <p className="notes"><strong>Docmat:</strong> {product.docmat}</p>}
+                      {product.notes && <p className="notes">{product.notes}</p>}
+                      <div className="card-actions">
+                        <button type="button" className="ghost-button" onClick={() => editProduct(product)}>Editar</button>
+                        <button type="button" className="delete-button" onClick={() => deleteProduct(product)}>Excluir</button>
+                      </div>
                     </div>
-                    <dl>
-                      <div><dt>DV</dt><dd>{formatDate(product.expiryDate)}</dd></div>
-                      <div><dt>Quantidade</dt><dd>{product.quantity}</dd></div>
-                      <div><dt>Local</dt><dd>{product.location || 'Não informado'}</dd></div>
-                    </dl>
-                    {product.docmat && <p className="notes">Docmat: {product.docmat}</p>}
-                    {product.notes && <p className="notes">{product.notes}</p>}
-                    <div className="card-actions">
-                      <button type="button" className="ghost-button" onClick={() => editProduct(product)}>Editar</button>
-                      <button type="button" className="delete-button" onClick={() => deleteProduct(product)}>Excluir</button>
-                    </div>
-                  </article>
+                  </details>
                 );
               })}
             </div>
