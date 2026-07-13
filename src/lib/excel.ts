@@ -5,7 +5,7 @@ import { formatDate, getExpiryLabel } from './expiry';
 export function exportProductsToExcel(products: Product[]): void {
   const rows = products.map((product) => ({
     Produto: product.name,
-    Ecode: product.ecode,
+    CEMB: product.ecode,
     Lote: product.batch,
     Validade: formatDate(product.expiryDate),
     Quantidade: product.quantity,
