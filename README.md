@@ -12,6 +12,7 @@ PWA para cadastro e controle de produtos químicos em estoque usando a câmera d
 - Indicadores de produtos vencidos e próximos do vencimento
 - Exportação do estoque para arquivo `.xlsx`
 - Instalação como PWA e funcionamento offline após o primeiro carregamento
+- Build automático e publicação pelo GitHub Pages
 
 ## Tecnologias
 
@@ -33,6 +34,16 @@ Para gerar a versão de produção:
 ```bash
 npm run build
 npm run preview
+```
+
+## Publicação
+
+A cada alteração aprovada e enviada para a branch `main`, o GitHub Actions valida o projeto e publica a pasta `dist` no GitHub Pages.
+
+Endereço previsto:
+
+```text
+https://carvalho832-glitch.github.io/estoque-quimico-pwa/
 ```
 
 ## Segurança
