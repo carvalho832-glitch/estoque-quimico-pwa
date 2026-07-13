@@ -1,32 +1,39 @@
-import ExcelJS from 'exceljs';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { Product } from '../types';
 
 export type ReportOptions = {
-  kitCode: string;
-  title: string;
-  updatedBy: string;
-  checkedBy: string;
+  kitCode?: string;
+  title?: string;
+  updatedBy?: string;
+  checkedBy?: string;
+  revision?: string;
 };
 
-const THIN_BORDER: Partial<ExcelJS.Borders> = {
-  top: { style: 'thin', color: { argb: 'FF000000' } },
-  left: { style: 'thin', color: { argb: 'FF000000' } },
-  bottom: { style: 'thin', color: { argb: 'FF000000' } },
-  right: { style: 'thin', color: { argb: 'FF000000' } },
+const DEFAULT_OPTIONS: Required<ReportOptions> = {
+  kitCode: 'FACC-GPX-MIPP-01',
+  title: 'KIT MIPP - SALA DE PREPARAÇÃO DE TINTAS',
+  updatedBy: '',
+  checkedBy: '',
+  revision: 'A',
 };
 
-function formatReportDate(date: Date): string {
-  return new Intl.DateTimeFormat('pt-BR').format(date);
+function formatDate(value: string): string {
+  if (!value) return '';
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
-function toExcelDate(value: string): Date | null {
-  const [year, month, day] = value.split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day, 12, 0, 0);
+function formatToday(): string {
+  return new Intl.DateTimeFormat('pt-BR').format(new Date());
+}
+
+function cleanText(value: string): string {
+  return value.replace(/[\u0000-\u001F\u007F]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeLocation(location: string): string {
-  const normalized = location.trim().replace(/\s+/g, ' ').toUpperCase();
+  const normalized = cleanText(location).toUpperCase();
   return normalized || 'SEM LOCAL DEFINIDO';
 }
 
@@ -53,176 +60,170 @@ function groupProducts(products: Product[]): Array<[string, Product[]]> {
     .map(([location, items]) => [
       location,
       items.sort((a, b) =>
-        a.name.localeCompare(b.name, 'pt-BR') ||
+        cleanText(a.name).localeCompare(cleanText(b.name), 'pt-BR') ||
         a.ecode.localeCompare(b.ecode, 'pt-BR') ||
         a.batch.localeCompare(b.batch, 'pt-BR'),
       ),
     ]);
 }
 
-function styleTableCell(cell: ExcelJS.Cell, options?: { bold?: boolean; fill?: string; alignment?: ExcelJS.Alignment }) {
-  cell.font = {
-    name: 'Arial',
-    size: 9,
-    bold: options?.bold ?? false,
-    color: { argb: 'FF000000' },
-  };
-  cell.border = THIN_BORDER;
-  cell.alignment = options?.alignment ?? {
-    horizontal: 'center',
-    vertical: 'middle',
-    wrapText: true,
-  };
+function drawHeader(doc: jsPDF, options: Required<ReportOptions>): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const left = 8;
+  const right = 8;
+  const top = 9;
+  const headerHeight = 17;
+  const kitWidth = 49;
+  const contentWidth = pageWidth - left - right;
 
-  if (options?.fill) {
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: options.fill },
-    };
-  }
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.25);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+
+  const updatedBy = options.updatedBy.trim() || '________________';
+  const checkedBy = options.checkedBy.trim() || '________________';
+  doc.text(
+    `ATUALIZADO POR: ${updatedBy} / CHECADO POR: ${checkedBy}   ${formatToday()}`,
+    pageWidth - right,
+    5.8,
+    { align: 'right' },
+  );
+
+  doc.rect(left, top, kitWidth, headerHeight);
+  doc.rect(left + kitWidth, top, contentWidth - kitWidth, headerHeight);
+
+  doc.setFontSize(7.5);
+  doc.text('KIT', left + kitWidth / 2, top + 5.2, { align: 'center' });
+  doc.setFontSize(9);
+  doc.text(options.kitCode, left + kitWidth / 2, top + 11.5, { align: 'center' });
+
+  doc.setFontSize(11.5);
+  doc.text(
+    options.title,
+    left + kitWidth + (contentWidth - kitWidth) / 2,
+    top + 10.3,
+    { align: 'center', maxWidth: contentWidth - kitWidth - 8 },
+  );
 }
 
-function downloadWorkbook(buffer: ExcelJS.Buffer, filename: string): void {
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+function drawFooter(doc: jsPDF, options: Required<ReportOptions>): void {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageNumber = doc.getNumberOfPages();
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(0, 0, 0);
+  doc.text(
+    `Controle de Materiais KIT ${options.kitCode} Rev. ${options.revision}`,
+    8,
+    pageHeight - 4.5,
+  );
+  doc.text(`Página ${pageNumber}`, pageWidth - 8, pageHeight - 4.5, { align: 'right' });
 }
 
-export async function exportProductsToExcel(products: Product[], options: ReportOptions): Promise<void> {
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'QuimStock';
-  workbook.created = new Date();
-  workbook.modified = new Date();
-
-  const worksheet = workbook.addWorksheet('Controle de Materiais', {
-    pageSetup: {
-      paperSize: 9,
-      orientation: 'portrait',
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 0,
-      horizontalCentered: true,
-      verticalCentered: false,
-      margins: {
-        left: 0.25,
-        right: 0.25,
-        top: 0.35,
-        bottom: 0.35,
-        header: 0.1,
-        footer: 0.1,
-      },
-    },
-    properties: {
-      defaultRowHeight: 18,
-    },
+export function exportProductsToPdf(products: Product[], reportOptions: ReportOptions = {}): void {
+  const options = { ...DEFAULT_OPTIONS, ...reportOptions };
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
   });
 
-  worksheet.columns = [
-    { key: 'ecode', width: 16 },
-    { key: 'batch', width: 19 },
-    { key: 'description', width: 55 },
-    { key: 'volume', width: 11 },
-    { key: 'expiryDate', width: 17 },
-  ];
-  worksheet.views = [{ state: 'frozen', ySplit: 4 }];
-  worksheet.pageSetup.printTitlesRow = '1:4';
+  doc.setProperties({
+    title: `Controle de Materiais - ${options.kitCode}`,
+    subject: 'Controle de materiais do estoque químico',
+    author: 'QuimStock',
+    creator: 'QuimStock',
+  });
 
-  worksheet.mergeCells('A1:E1');
-  const metadataCell = worksheet.getCell('A1');
-  metadataCell.value = `ATUALIZADO POR: ${options.updatedBy.trim() || '________________'} / CHECADO POR: ${options.checkedBy.trim() || '________________'}   ${formatReportDate(new Date())}`;
-  metadataCell.font = { name: 'Arial', size: 9, bold: true };
-  metadataCell.alignment = { horizontal: 'center', vertical: 'middle' };
-  worksheet.getRow(1).height = 22;
-
-  worksheet.mergeCells('A2:B3');
-  const kitCell = worksheet.getCell('A2');
-  kitCell.value = `KIT\n${options.kitCode.trim() || 'FACC-GPX-MIPP-01'}`;
-  styleTableCell(kitCell, { bold: true });
-
-  worksheet.mergeCells('C2:E3');
-  const titleCell = worksheet.getCell('C2');
-  titleCell.value = options.title.trim() || 'KIT MIPP - SALA DE PREPARAÇÃO DE TINTAS';
-  styleTableCell(titleCell, { bold: true });
-  titleCell.font = { name: 'Arial', size: 12, bold: true };
-  worksheet.getRow(2).height = 24;
-  worksheet.getRow(3).height = 24;
-
-  const headerRow = worksheet.getRow(4);
-  headerRow.values = ['CÓD EMB', 'LOTE', 'DESCRIÇÃO', 'VOLUME', 'VALIDADE'];
-  headerRow.height = 22;
-  headerRow.eachCell((cell) => styleTableCell(cell, { bold: true, fill: 'FFF2F2F2' }));
-
-  let currentRow = 5;
+  const body: unknown[] = [];
   const groupedProducts = groupProducts(products);
 
   groupedProducts.forEach(([location, items]) => {
-    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-    const groupCell = worksheet.getCell(`A${currentRow}`);
-    groupCell.value = location;
-    styleTableCell(groupCell, { bold: true, fill: 'FFD9D9D9' });
-    worksheet.getRow(currentRow).height = 19;
-    currentRow += 1;
+    body.push([
+      {
+        content: location,
+        colSpan: 5,
+        styles: {
+          fillColor: [220, 220, 220],
+          fontStyle: 'bold',
+          halign: 'center',
+          cellPadding: 1.1,
+        },
+      },
+    ]);
 
     items.forEach((product) => {
-      const row = worksheet.getRow(currentRow);
-      row.values = [
-        product.ecode,
-        product.batch,
-        product.name || `MATERIAL ${product.ecode}`,
-        product.quantity,
-        toExcelDate(product.expiryDate),
-      ];
-      row.height = 20;
-
-      row.eachCell((cell, columnNumber) => {
-        styleTableCell(cell, {
-          alignment: {
-            horizontal: columnNumber === 3 ? 'center' : 'center',
-            vertical: 'middle',
-            wrapText: true,
-          },
-        });
-      });
-
-      row.getCell(1).numFmt = '@';
-      row.getCell(2).numFmt = '@';
-      row.getCell(4).numFmt = '0';
-      row.getCell(5).numFmt = 'dd/mm/yyyy';
-      currentRow += 1;
+      body.push([
+        cleanText(product.ecode),
+        cleanText(product.batch),
+        cleanText(product.name || `MATERIAL ${product.ecode}`),
+        String(product.quantity),
+        formatDate(product.expiryDate),
+      ]);
     });
   });
 
-  if (!groupedProducts.length) {
-    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-    const emptyCell = worksheet.getCell(`A${currentRow}`);
-    emptyCell.value = 'NENHUM PRODUTO CADASTRADO';
-    styleTableCell(emptyCell, { bold: true, fill: 'FFF2F2F2' });
-    currentRow += 1;
+  if (!body.length) {
+    body.push([
+      {
+        content: 'NENHUM PRODUTO CADASTRADO',
+        colSpan: 5,
+        styles: {
+          fillColor: [245, 245, 245],
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+      },
+    ]);
   }
 
-  worksheet.mergeCells(`A${currentRow + 1}:E${currentRow + 1}`);
-  const footerCell = worksheet.getCell(`A${currentRow + 1}`);
-  footerCell.value = `Controle de Materiais KIT ${options.kitCode.trim() || 'FACC-GPX-MIPP-01'} Rev. A`;
-  footerCell.font = { name: 'Arial', size: 8 };
-  footerCell.alignment = { horizontal: 'left', vertical: 'middle' };
-  worksheet.getRow(currentRow + 1).height = 20;
+  autoTable(doc, {
+    startY: 29,
+    margin: { top: 29, right: 8, bottom: 11, left: 8 },
+    head: [['CÓD EMB', 'LOTE', 'DESCRIÇÃO', 'VOLUME', 'VALIDADE']],
+    body: body as never[],
+    theme: 'grid',
+    showHead: 'everyPage',
+    styles: {
+      font: 'helvetica',
+      fontSize: 7.2,
+      textColor: [0, 0, 0],
+      lineColor: [0, 0, 0],
+      lineWidth: 0.18,
+      cellPadding: { top: 1.05, right: 1, bottom: 1.05, left: 1 },
+      valign: 'middle',
+      halign: 'center',
+      overflow: 'linebreak',
+      minCellHeight: 5.1,
+    },
+    headStyles: {
+      fillColor: [242, 242, 242],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      halign: 'center',
+      valign: 'middle',
+      lineColor: [0, 0, 0],
+      lineWidth: 0.25,
+      minCellHeight: 6.2,
+    },
+    columnStyles: {
+      0: { cellWidth: 32 },
+      1: { cellWidth: 41 },
+      2: { cellWidth: 135 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 43 },
+    },
+    didDrawPage: () => {
+      drawHeader(doc, options);
+      drawFooter(doc, options);
+    },
+  });
 
-  worksheet.autoFilter = {
-    from: 'A4',
-    to: `E${Math.max(4, currentRow - 1)}`,
-  };
-  worksheet.pageSetup.printArea = `A1:E${currentRow + 1}`;
-
-  const buffer = await workbook.xlsx.writeBuffer();
   const date = new Date().toISOString().slice(0, 10);
-  downloadWorkbook(buffer, `controle-materiais-kit-${date}.xlsx`);
+  doc.save(`controle-materiais-kit-${date}.pdf`);
 }
