@@ -3,6 +3,7 @@ import { listProducts, removeProduct, saveProduct } from './lib/db';
 import { exportProductsToExcel } from './lib/excel';
 import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
+import { readInventoryQr } from './lib/qr';
 import type { Product, ProductDraft } from './types';
 
 const EMPTY_DRAFT: ProductDraft = {
@@ -22,14 +23,24 @@ function createId(): string {
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function productToDraft(product: Product): ProductDraft {
+  const { id, createdAt, updatedAt, ...draft } = product;
+  void id;
+  void createdAt;
+  void updatedAt;
+  return draft;
+}
+
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [draft, setDraft] = useState<ProductDraft>(EMPTY_DRAFT);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [qrRead, setQrRead] = useState(false);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [qrLoading, setQrLoading] = useState(false);
   const [ocrProgress, setOcrProgress] = useState<number | null>(null);
   const [ocrStatus, setOcrStatus] = useState('');
   const [message, setMessage] = useState('');
@@ -53,8 +64,9 @@ export default function App() {
   const filteredProducts = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('pt-BR');
     if (!term) return products;
+
     return products.filter((product) =>
-      [product.name, product.ecode, product.batch, product.location]
+      [product.name, product.ecode, product.docmat, product.batch, product.location]
         .join(' ')
         .toLocaleLowerCase('pt-BR')
         .includes(term),
@@ -64,6 +76,7 @@ export default function App() {
   const stats = useMemo(() => {
     const expired = products.filter((product) => getExpiryLevel(product.expiryDate) === 'expired').length;
     const attention = products.filter((product) => ['critical', 'warning'].includes(getExpiryLevel(product.expiryDate))).length;
+
     return {
       total: products.length,
       units: products.reduce((sum, product) => sum + product.quantity, 0),
@@ -79,10 +92,65 @@ export default function App() {
   function handlePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
     setPhoto(file);
+    setQrRead(false);
     updateDraft('imageName', file?.name ?? '');
 
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(file ? URL.createObjectURL(file) : '');
+    setMessage(file ? 'Foto carregada. Toque em “Ler QR Code”.' : '');
+  }
+
+  async function handleQr() {
+    if (!photo) {
+      setMessage('Fotografe ou selecione uma etiqueta com QR Code primeiro.');
+      return;
+    }
+
+    setMessage('');
+    setQrLoading(true);
+
+    try {
+      const qr = await readInventoryQr(photo);
+      const existing = products.find(
+        (product) => product.ecode.toUpperCase() === qr.ecode && product.batch.toUpperCase() === qr.batch,
+      );
+      const knownProduct = existing ?? products.find((product) => product.ecode.toUpperCase() === qr.ecode);
+      const baseDraft = existing ? productToDraft(existing) : draft;
+
+      setDraft({
+        ...baseDraft,
+        name: existing?.name || draft.name || knownProduct?.name || '',
+        ecode: qr.ecode,
+        docmat: qr.docmat,
+        batch: qr.batch,
+        supplierBatch: qr.supplierBatch,
+        packageVolume: qr.packageVolume,
+        qrPrefix: qr.prefix,
+        qrRaw: qr.raw,
+        expiryDate: qr.expiryDate || existing?.expiryDate || draft.expiryDate,
+        quantity: existing?.quantity ?? draft.quantity ?? 1,
+        location: existing?.location ?? draft.location ?? '',
+        notes: existing?.notes ?? draft.notes ?? '',
+        imageName: photo.name,
+      });
+
+      setEditingId(existing?.id ?? null);
+      setQrRead(true);
+
+      if (existing) {
+        setMessage('QR lido. Este Ecode/Material e lote já existem; o registro foi aberto para atualização. Confira a DV.');
+      } else if (qr.expiryDate) {
+        setMessage('QR lido. Ecode/Material, lote e DV foram preenchidos. Confira antes de salvar.');
+      } else {
+        setMessage('QR lido. Ecode/Material e lote foram preenchidos. Informe a DV antes de salvar.');
+      }
+    } catch (error) {
+      console.error(error);
+      setQrRead(false);
+      setMessage(error instanceof Error ? error.message : 'Não foi possível ler o QR Code.');
+    } finally {
+      setQrLoading(false);
+    }
   }
 
   async function handleOcr() {
@@ -107,11 +175,12 @@ export default function App() {
         ecode: fields.ecode || current.ecode,
         batch: fields.batch || current.batch,
         expiryDate: fields.expiryDate || current.expiryDate,
+        notes: fields.notes || current.notes,
       }));
-      setMessage('Leitura concluída. Confira e edite os campos antes de salvar.');
+      setMessage('OCR concluído. Confira Ecode/Material, lote e DV antes de salvar.');
     } catch (error) {
       console.error(error);
-      setMessage('Não foi possível ler o rótulo. Preencha os campos manualmente.');
+      setMessage('Não foi possível ler o texto do rótulo. Preencha os campos manualmente.');
     } finally {
       setOcrProgress(null);
       setOcrStatus('');
@@ -122,17 +191,18 @@ export default function App() {
     event.preventDefault();
     setMessage('');
 
-    if (!draft.name.trim() || !draft.ecode.trim() || !draft.batch.trim() || !draft.expiryDate) {
-      setMessage('Preencha nome, CEMB, lote e validade.');
+    if (!draft.ecode.trim() || !draft.batch.trim() || !draft.expiryDate) {
+      setMessage('Preencha Ecode/Material, lote e DV.');
       return;
     }
 
     const existing = editingId ? products.find((product) => product.id === editingId) : undefined;
     const now = new Date().toISOString();
+    const ecode = draft.ecode.trim().toUpperCase();
     const product: Product = {
       ...draft,
-      name: draft.name.trim(),
-      ecode: draft.ecode.trim().toUpperCase(),
+      name: draft.name.trim() || `Material ${ecode}`,
+      ecode,
       batch: draft.batch.trim().toUpperCase(),
       quantity: Math.max(1, Number(draft.quantity) || 1),
       id: existing?.id ?? createId(),
@@ -143,30 +213,32 @@ export default function App() {
     const duplicate = products.find(
       (item) => item.id !== product.id && item.ecode.toUpperCase() === product.ecode && item.batch.toUpperCase() === product.batch,
     );
-    if (duplicate && !window.confirm('Já existe um item com o mesmo CEMB e lote. Deseja salvar mesmo assim?')) return;
+
+    if (duplicate) {
+      setMessage('Este Ecode/Material e lote já estão cadastrados. Abra o registro existente para atualizar.');
+      return;
+    }
 
     await saveProduct(product);
     await refreshProducts();
     resetForm();
-    setMessage(existing ? 'Produto atualizado.' : 'Produto salvo no aparelho.');
+    setMessage(existing ? 'Estoque atualizado.' : 'Produto cadastrado no estoque.');
   }
 
   function resetForm() {
     setDraft(EMPTY_DRAFT);
     setEditingId(null);
     setPhoto(null);
+    setQrRead(false);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl('');
   }
 
   function editProduct(product: Product) {
-    const { id, createdAt, updatedAt, ...productDraft } = product;
-    void id;
-    void createdAt;
-    void updatedAt;
-    setDraft(productDraft);
+    setDraft(productToDraft(product));
     setEditingId(product.id);
     setPhoto(null);
+    setQrRead(false);
     setPreviewUrl('');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -185,7 +257,7 @@ export default function App() {
         <div>
           <span className="eyebrow">ESTOQUE QUÍMICO</span>
           <h1>QuimStock</h1>
-          <p>Câmera, conferência e Excel no mesmo frasco digital.</p>
+          <p>QR Code, conferência e Excel no mesmo frasco digital.</p>
         </div>
         <div className="header-badge" aria-label="Aplicativo instalável">PWA</div>
       </header>
@@ -201,8 +273,8 @@ export default function App() {
         <section className="panel">
           <div className="section-title">
             <div>
-              <span className="eyebrow">CADASTRO</span>
-              <h2>{editingId ? 'Editar produto' : 'Novo produto'}</h2>
+              <span className="eyebrow">CADASTRO E ATUALIZAÇÃO</span>
+              <h2>{editingId ? 'Atualizar produto' : 'Ler etiqueta'}</h2>
             </div>
             {editingId && <button className="ghost-button" type="button" onClick={resetForm}>Cancelar edição</button>}
           </div>
@@ -210,15 +282,33 @@ export default function App() {
           <div className="camera-area">
             <label className="camera-button">
               <span>📷</span>
-              Fotografar rótulo
+              Fotografar QR
               <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} />
             </label>
-            <button className="secondary-button" type="button" onClick={handleOcr} disabled={!photo || ocrProgress !== null}>
-              {ocrProgress !== null ? 'Lendo rótulo...' : 'Ler dados com OCR'}
+            <button className="secondary-button" type="button" onClick={handleQr} disabled={!photo || qrLoading}>
+              {qrLoading ? 'Lendo QR...' : 'Ler QR Code'}
+            </button>
+            <button className="ghost-button" type="button" onClick={handleOcr} disabled={!photo || ocrProgress !== null}>
+              {ocrProgress !== null ? 'Lendo texto...' : 'Usar OCR alternativo'}
             </button>
           </div>
 
-          {previewUrl && <img className="label-preview" src={previewUrl} alt="Prévia do rótulo selecionado" />}
+          {previewUrl && !qrRead && <img className="label-preview" src={previewUrl} alt="Foto da etiqueta selecionada" />}
+
+          {qrRead && (
+            <article className="identified-product">
+              {previewUrl && <img src={previewUrl} alt="Foto do produto identificado pelo QR Code" />}
+              <div>
+                <span className="eyebrow">PRODUTO IDENTIFICADO</span>
+                <h3>{draft.name || `Material ${draft.ecode}`}</h3>
+                <dl>
+                  <div><dt>Ecode/Material</dt><dd>{draft.ecode}</dd></div>
+                  <div><dt>Lote</dt><dd>{draft.batch}</dd></div>
+                  <div><dt>DV</dt><dd>{draft.expiryDate ? formatDate(draft.expiryDate) : 'Informe abaixo'}</dd></div>
+                </dl>
+              </div>
+            </article>
+          )}
 
           {ocrProgress !== null && (
             <div className="progress-box">
@@ -229,25 +319,29 @@ export default function App() {
 
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
-              <label className="field field-wide">
-                <span>Nome do produto * <small>(editável)</small></span>
-                <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Ex.: ATR 1000" />
-              </label>
               <label className="field">
-                <span>CEMB *</span>
-                <input value={draft.ecode} onChange={(event) => updateDraft('ecode', event.target.value)} placeholder="Ex.: 1453537" inputMode="numeric" />
+                <span>Ecode/Material *</span>
+                <input value={draft.ecode} onChange={(event) => updateDraft('ecode', event.target.value)} placeholder="Ex.: 7380733" inputMode="numeric" />
               </label>
               <label className="field">
                 <span>Lote *</span>
-                <input value={draft.batch} onChange={(event) => updateDraft('batch', event.target.value)} placeholder="Ex.: C031996704" />
+                <input value={draft.batch} onChange={(event) => updateDraft('batch', event.target.value)} placeholder="Ex.: C032408071" />
               </label>
-              <label className="field">
-                <span>Data de validade *</span>
+              <label className="field field-wide important-field">
+                <span>DV, data de validade *</span>
                 <input type="date" value={draft.expiryDate} onChange={(event) => updateDraft('expiryDate', event.target.value)} />
+              </label>
+              <label className="field field-wide">
+                <span>Nome do produto <small>(opcional e editável)</small></span>
+                <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} placeholder="Ex.: Reducer PU Varnish 150" />
               </label>
               <label className="field">
                 <span>Quantidade</span>
                 <input type="number" min="1" value={draft.quantity} onChange={(event) => updateDraft('quantity', Number(event.target.value))} />
+              </label>
+              <label className="field">
+                <span>Docmat</span>
+                <input value={draft.docmat ?? ''} onChange={(event) => updateDraft('docmat', event.target.value)} placeholder="Preenchido pelo QR" />
               </label>
               <label className="field field-wide">
                 <span>Local de armazenamento</span>
@@ -259,8 +353,8 @@ export default function App() {
               </label>
             </div>
 
-            <p className="confirmation-note">⚠️ Confira e edite nome, CEMB, lote e validade. O OCR apenas sugere os dados.</p>
-            <button className="primary-button" type="submit">{editingId ? 'Salvar alterações' : 'Confirmar e salvar'}</button>
+            <p className="confirmation-note">⚠️ Confira Ecode/Material, lote e DV. São os três campos principais do estoque.</p>
+            <button className="primary-button" type="submit">{editingId ? 'Atualizar estoque' : 'Confirmar e cadastrar'}</button>
           </form>
 
           {message && <p className="app-message" role="status">{message}</p>}
@@ -279,7 +373,7 @@ export default function App() {
 
           <label className="search-box">
             <span>🔎</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por produto, CEMB, lote ou local" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por Ecode, lote, Docmat ou produto" />
           </label>
 
           {loading ? (
@@ -295,15 +389,16 @@ export default function App() {
                     <div className="product-card-top">
                       <div>
                         <h3>{product.name}</h3>
-                        <p>CEMB: <strong>{product.ecode}</strong> · Lote: <strong>{product.batch}</strong></p>
+                        <p>Ecode/Material: <strong>{product.ecode}</strong> · Lote: <strong>{product.batch}</strong></p>
                       </div>
                       <span className={`status-badge status-${level}`}>{getExpiryLabel(product.expiryDate)}</span>
                     </div>
                     <dl>
-                      <div><dt>Validade</dt><dd>{formatDate(product.expiryDate)}</dd></div>
+                      <div><dt>DV</dt><dd>{formatDate(product.expiryDate)}</dd></div>
                       <div><dt>Quantidade</dt><dd>{product.quantity}</dd></div>
                       <div><dt>Local</dt><dd>{product.location || 'Não informado'}</dd></div>
                     </dl>
+                    {product.docmat && <p className="notes">Docmat: {product.docmat}</p>}
                     {product.notes && <p className="notes">{product.notes}</p>}
                     <div className="card-actions">
                       <button type="button" className="ghost-button" onClick={() => editProduct(product)}>Editar</button>
