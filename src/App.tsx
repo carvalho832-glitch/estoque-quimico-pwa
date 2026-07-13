@@ -1,7 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import QrLiveScanner from './components/QrLiveScanner';
 import { listProducts, removeProduct, saveProduct } from './lib/db';
-import { exportProductsToExcel } from './lib/excel';
+import { exportProductsToPdf } from './lib/excel';
 import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
 import { parseInventoryQr, readInventoryQr } from './lib/qr';
@@ -284,7 +284,7 @@ export default function App() {
         <div>
           <span className="eyebrow">ESTOQUE QUÍMICO</span>
           <h1>QuimStock</h1>
-          <p>QR Code, conferência e Excel no mesmo frasco digital.</p>
+          <p>QR Code, conferência e PDF no mesmo frasco digital.</p>
         </div>
         <div className="header-badge" aria-label="Aplicativo instalável">PWA</div>
       </header>
@@ -380,7 +380,7 @@ export default function App() {
               </label>
               <label className="field field-wide">
                 <span>Local de armazenamento</span>
-                <input value={draft.location} onChange={(event) => updateDraft('location', event.target.value)} placeholder="Ex.: Armário 03, prateleira B" />
+                <input value={draft.location} onChange={(event) => updateDraft('location', event.target.value)} placeholder="Ex.: Prateleira 1" />
               </label>
               <label className="field field-wide">
                 <span>Observações</span>
@@ -401,8 +401,8 @@ export default function App() {
               <span className="eyebrow">INVENTÁRIO LOCAL</span>
               <h2>Produtos cadastrados</h2>
             </div>
-            <button className="secondary-button" type="button" onClick={() => exportProductsToExcel(products)} disabled={!products.length}>
-              Exportar Excel
+            <button className="secondary-button" type="button" onClick={() => exportProductsToPdf(products)} disabled={!products.length}>
+              Gerar PDF
             </button>
           </div>
 
