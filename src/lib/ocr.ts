@@ -66,7 +66,8 @@ function findValueAfterLabels(lines: string[], labels: RegExp[], maxFollowingLin
 
       for (let offset = 1; offset <= maxFollowingLines; offset += 1) {
         const candidate = lines[index + offset]?.trim();
-        if (!candidate || isLikelyLabel(candidate)) continue;
+        if (!candidate) continue;
+        if (isLikelyLabel(candidate)) break;
         return cleanCandidate(candidate);
       }
     }
