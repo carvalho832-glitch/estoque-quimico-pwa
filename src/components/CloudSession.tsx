@@ -1,4 +1,4 @@
-import { FormEvent, Fragment, ReactNode, useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -65,7 +65,7 @@ export default function CloudSession({ children }: Props) {
     if (!user || !firebaseConfigured) return;
 
     let active = true;
-    let unsubscribe = () => undefined;
+    let unsubscribe: () => void = () => undefined;
 
     function notifyProductsChanged() {
       dispatchProductsChanged();
@@ -75,12 +75,12 @@ export default function CloudSession({ children }: Props) {
     async function connectCloud() {
       setSyncState(navigator.onLine ? 'connecting' : 'offline');
       try {
-        await migrateLocalProductsToCloud(user!.uid);
+        await migrateLocalProductsToCloud(user.uid);
         if (!active) return;
         notifyProductsChanged();
 
         unsubscribe = subscribeCloudProducts(
-          user!.uid,
+          user.uid,
           () => {
             if (!active) return;
             setSyncState(navigator.onLine ? 'synced' : 'offline');
