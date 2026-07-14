@@ -184,16 +184,52 @@
   bottom: 14px;
   z-index: 900;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 9px;
-  max-width: min(390px, calc(100vw - 28px));
+  max-width: min(430px, calc(100vw - 28px));
   padding: 9px 10px;
   border: 1px solid #cfe2de;
   border-radius: 15px;
   background: rgba(255,255,255,0.96);
   box-shadow: 0 12px 35px rgba(20, 60, 54, 0.18);
   backdrop-filter: blur(10px);
+  animation: cloud-session-enter 180ms ease-out;
+}
+
+.cloud-session-compact {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 900;
+  display: grid;
+  grid-template-columns: auto auto;
+  place-items: center;
+  gap: 5px;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 1px solid #bfe1d8;
+  border-radius: 50%;
+  color: #0f665e;
+  background: rgba(255,255,255,0.97);
+  box-shadow: 0 10px 28px rgba(20, 60, 54, 0.2);
+  backdrop-filter: blur(10px);
+  font-size: 1rem;
+  cursor: pointer;
+  animation: cloud-session-enter 180ms ease-out;
+}
+
+.cloud-session-compact:hover,
+.cloud-session-compact:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 13px 32px rgba(20, 60, 54, 0.24);
+}
+
+.cloud-session-compact:focus-visible,
+.cloud-session-chip button:focus-visible {
+  outline: 3px solid rgba(20,160,146,0.22);
+  outline-offset: 2px;
 }
 
 .cloud-session-dot {
@@ -203,10 +239,26 @@
   background: #94a3b8;
 }
 
-.cloud-session-chip.synced .cloud-session-dot { background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,0.12); }
-.cloud-session-chip.connecting .cloud-session-dot { background: #0ea5e9; box-shadow: 0 0 0 4px rgba(14,165,233,0.12); }
-.cloud-session-chip.offline .cloud-session-dot { background: #ca8a04; box-shadow: 0 0 0 4px rgba(202,138,4,0.12); }
-.cloud-session-chip.error .cloud-session-dot { background: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,0.12); }
+.cloud-session-chip.synced .cloud-session-dot,
+.cloud-session-compact.synced .cloud-session-dot {
+  background: #16a34a;
+  box-shadow: 0 0 0 4px rgba(22,163,74,0.12);
+}
+
+.cloud-session-chip.connecting .cloud-session-dot {
+  background: #0ea5e9;
+  box-shadow: 0 0 0 4px rgba(14,165,233,0.12);
+}
+
+.cloud-session-chip.offline .cloud-session-dot {
+  background: #ca8a04;
+  box-shadow: 0 0 0 4px rgba(202,138,4,0.12);
+}
+
+.cloud-session-chip.error .cloud-session-dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 4px rgba(220,38,38,0.12);
+}
 
 .cloud-session-chip strong,
 .cloud-session-chip small {
@@ -231,15 +283,39 @@
 .cloud-session-chip button {
   border: 0;
   border-radius: 9px;
-  padding: 7px 9px;
   color: #0f5f57;
   background: #edf6f4;
-  font-size: 0.7rem;
   font-weight: 800;
+  cursor: pointer;
+}
+
+.cloud-session-collapse {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 5px 9px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cloud-session-signout {
+  padding: 7px 9px;
+  font-size: 0.7rem;
+}
+
+@keyframes cloud-session-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (max-width: 480px) {
   .cloud-auth-card { padding: 22px 18px; border-radius: 22px; }
   .cloud-session-chip { left: 10px; right: 10px; bottom: 10px; }
-  .cloud-session-chip small { max-width: 150px; }
+  .cloud-session-chip small { max-width: 140px; }
+  .cloud-session-compact { right: 10px; bottom: 10px; }
 }
