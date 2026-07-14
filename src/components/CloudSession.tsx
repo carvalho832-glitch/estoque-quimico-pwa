@@ -46,6 +46,7 @@ export default function CloudSession({ children }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [syncState, setSyncState] = useState<SyncState>(firebaseConfigured ? 'connecting' : 'local');
   const [dataRevision, setDataRevision] = useState(0);
+  const [sessionExpanded, setSessionExpanded] = useState(true);
 
   useEffect(() => {
     const auth = firebaseAuth;
@@ -113,6 +114,17 @@ export default function CloudSession({ children }: Props) {
       window.removeEventListener('offline', handleOffline);
     };
   }, [user]);
+
+  useEffect(() => {
+    if (syncState !== 'synced') {
+      setSessionExpanded(true);
+      return;
+    }
+
+    setSessionExpanded(true);
+    const timer = window.setTimeout(() => setSessionExpanded(false), 4500);
+    return () => window.clearTimeout(timer);
+  }, [syncState]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -237,19 +249,45 @@ export default function CloudSession({ children }: Props) {
           ? 'Falha na sincronização'
           : 'Dados locais';
 
+  const showCompactStatus = syncState === 'synced' && !sessionExpanded;
+
   return (
     <>
       <Fragment key={dataRevision}>{children}</Fragment>
-      <aside className={`cloud-session-chip ${syncState}`} aria-label="Situação da sincronização">
-        <span className="cloud-session-dot" />
-        <div>
-          <strong>{syncLabel}</strong>
-          <small>{user?.email ?? 'Firebase ainda não configurado'}</small>
-        </div>
-        {user && firebaseAuth && (
-          <button type="button" onClick={() => void handleSignOut()}>Sair</button>
-        )}
-      </aside>
+
+      {showCompactStatus ? (
+        <button
+          type="button"
+          className="cloud-session-compact synced"
+          onClick={() => setSessionExpanded(true)}
+          aria-label="Estoque sincronizado. Toque para abrir os detalhes da conta."
+          title="Sincronizado"
+        >
+          <span className="cloud-session-dot" />
+          <span aria-hidden="true">☁</span>
+        </button>
+      ) : (
+        <aside className={`cloud-session-chip ${syncState}`} aria-label="Situação da sincronização">
+          <span className="cloud-session-dot" />
+          <div>
+            <strong>{syncLabel}</strong>
+            <small>{user?.email ?? 'Firebase ainda não configurado'}</small>
+          </div>
+          {syncState === 'synced' && (
+            <button
+              className="cloud-session-collapse"
+              type="button"
+              onClick={() => setSessionExpanded(false)}
+              aria-label="Recolher aviso de sincronização"
+            >
+              ⌄
+            </button>
+          )}
+          {user && firebaseAuth && (
+            <button className="cloud-session-signout" type="button" onClick={() => void handleSignOut()}>Sair</button>
+          )}
+        </aside>
+      )}
     </>
   );
 }
