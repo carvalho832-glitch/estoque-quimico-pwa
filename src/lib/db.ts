@@ -124,7 +124,9 @@ export async function saveProduct(product: Product): Promise<IDBValidKey> {
   const user = firebaseAuth?.currentUser;
 
   if (user && firebaseDb) {
-    await setDoc(cloudProductDocument(user.uid, product.id), cleanProduct(product));
+    void setDoc(cloudProductDocument(user.uid, product.id), cleanProduct(product)).catch((error) => {
+      console.error('Produto salvo localmente, mas ainda não sincronizado:', error);
+    });
   }
 
   return localKey;
@@ -135,7 +137,9 @@ export async function removeProduct(id: string): Promise<void> {
   const user = firebaseAuth?.currentUser;
 
   if (user && firebaseDb) {
-    await deleteDoc(cloudProductDocument(user.uid, id));
+    void deleteDoc(cloudProductDocument(user.uid, id)).catch((error) => {
+      console.error('Produto excluído localmente, mas a exclusão ainda não foi sincronizada:', error);
+    });
   }
 }
 
