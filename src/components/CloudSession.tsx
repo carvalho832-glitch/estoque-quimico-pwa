@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from 'react';
+import { FormEvent, Fragment, ReactNode, useEffect, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -45,6 +45,7 @@ export default function CloudSession({ children }: Props) {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [syncState, setSyncState] = useState<SyncState>(firebaseConfigured ? 'connecting' : 'local');
+  const [dataRevision, setDataRevision] = useState(0);
 
   useEffect(() => {
     if (!firebaseConfigured || !firebaseAuth) {
@@ -66,19 +67,24 @@ export default function CloudSession({ children }: Props) {
     let active = true;
     let unsubscribe = () => undefined;
 
+    function notifyProductsChanged() {
+      dispatchProductsChanged();
+      setDataRevision((current) => current + 1);
+    }
+
     async function connectCloud() {
       setSyncState(navigator.onLine ? 'connecting' : 'offline');
       try {
         await migrateLocalProductsToCloud(user!.uid);
         if (!active) return;
-        dispatchProductsChanged();
+        notifyProductsChanged();
 
         unsubscribe = subscribeCloudProducts(
           user!.uid,
           () => {
             if (!active) return;
             setSyncState(navigator.onLine ? 'synced' : 'offline');
-            dispatchProductsChanged();
+            notifyProductsChanged();
           },
           (error) => {
             console.error(error);
@@ -223,7 +229,7 @@ export default function CloudSession({ children }: Props) {
 
   return (
     <>
-      {children}
+      <Fragment key={dataRevision}>{children}</Fragment>
       <aside className={`cloud-session-chip ${syncState}`} aria-label="Situação da sincronização">
         <span className="cloud-session-dot" />
         <div>
