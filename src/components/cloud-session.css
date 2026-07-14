@@ -1,0 +1,245 @@
+.cloud-loading-screen,
+.cloud-auth-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background:
+    radial-gradient(circle at top right, rgba(20, 184, 166, 0.16), transparent 32rem),
+    #edf4f2;
+}
+
+.cloud-loading-screen {
+  gap: 12px;
+  align-content: center;
+  color: #184943;
+}
+
+.cloud-spinner {
+  width: 42px;
+  height: 42px;
+  border: 4px solid #cfe5e1;
+  border-top-color: #0f766e;
+  border-radius: 50%;
+  animation: cloud-spin 800ms linear infinite;
+}
+
+@keyframes cloud-spin {
+  to { transform: rotate(360deg); }
+}
+
+.cloud-auth-card {
+  width: min(440px, 100%);
+  padding: 28px;
+  border: 1px solid #d4e5e1;
+  border-radius: 26px;
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 24px 70px rgba(30, 73, 66, 0.14);
+}
+
+.cloud-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.cloud-auth-brand > span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  color: white;
+  background: #0f766e;
+  font-weight: 900;
+}
+
+.cloud-auth-brand strong,
+.cloud-auth-brand small {
+  display: block;
+}
+
+.cloud-auth-brand strong {
+  color: #153f39;
+  font-size: 1.06rem;
+}
+
+.cloud-auth-brand small {
+  margin-top: 2px;
+  color: #6d827e;
+}
+
+.cloud-auth-kicker {
+  color: #0f766e;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.cloud-auth-card h1 {
+  margin: 5px 0 7px;
+  color: #153f39;
+  font-size: clamp(1.75rem, 6vw, 2.45rem);
+  letter-spacing: -0.04em;
+}
+
+.cloud-auth-card > p {
+  margin: 0 0 19px;
+  color: #687f7a;
+  line-height: 1.5;
+}
+
+.cloud-auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 17px;
+  padding: 5px;
+  border-radius: 13px;
+  background: #edf5f3;
+}
+
+.cloud-auth-tabs button {
+  border: 0;
+  border-radius: 9px;
+  padding: 9px;
+  color: #607a75;
+  background: transparent;
+  font-weight: 800;
+}
+
+.cloud-auth-tabs button.active {
+  color: #0f5f57;
+  background: white;
+  box-shadow: 0 4px 13px rgba(30, 73, 66, 0.08);
+}
+
+.cloud-auth-card form {
+  display: grid;
+  gap: 13px;
+}
+
+.cloud-auth-card form label {
+  display: grid;
+  gap: 6px;
+}
+
+.cloud-auth-card form label span {
+  color: #3d615c;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.cloud-auth-card form input {
+  width: 100%;
+  border: 1px solid #cdded9;
+  border-radius: 12px;
+  padding: 12px 13px;
+  color: #153b37;
+  background: #fbfdfd;
+  outline: none;
+}
+
+.cloud-auth-card form input:focus {
+  border-color: #14a092;
+  box-shadow: 0 0 0 3px rgba(20,160,146,0.13);
+}
+
+.cloud-auth-submit,
+.cloud-reset-button {
+  border: 0;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.cloud-auth-submit {
+  margin-top: 3px;
+  padding: 12px 14px;
+  color: white;
+  background: #0f766e;
+  box-shadow: 0 9px 22px rgba(15,118,110,0.2);
+}
+
+.cloud-reset-button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  color: #0f665e;
+  background: #eef7f5;
+}
+
+.cloud-auth-message {
+  margin: 13px 0 0 !important;
+  padding: 10px 12px;
+  border-radius: 11px;
+  color: #0f5f57 !important;
+  background: #e6f7f3;
+  font-size: 0.82rem;
+}
+
+.cloud-session-chip {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 900;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  max-width: min(390px, calc(100vw - 28px));
+  padding: 9px 10px;
+  border: 1px solid #cfe2de;
+  border-radius: 15px;
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 12px 35px rgba(20, 60, 54, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.cloud-session-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+
+.cloud-session-chip.synced .cloud-session-dot { background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,0.12); }
+.cloud-session-chip.connecting .cloud-session-dot { background: #0ea5e9; box-shadow: 0 0 0 4px rgba(14,165,233,0.12); }
+.cloud-session-chip.offline .cloud-session-dot { background: #ca8a04; box-shadow: 0 0 0 4px rgba(202,138,4,0.12); }
+.cloud-session-chip.error .cloud-session-dot { background: #dc2626; box-shadow: 0 0 0 4px rgba(220,38,38,0.12); }
+
+.cloud-session-chip strong,
+.cloud-session-chip small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cloud-session-chip strong {
+  color: #214b45;
+  font-size: 0.76rem;
+}
+
+.cloud-session-chip small {
+  max-width: 190px;
+  margin-top: 1px;
+  color: #708581;
+  font-size: 0.66rem;
+}
+
+.cloud-session-chip button {
+  border: 0;
+  border-radius: 9px;
+  padding: 7px 9px;
+  color: #0f5f57;
+  background: #edf6f4;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+@media (max-width: 480px) {
+  .cloud-auth-card { padding: 22px 18px; border-radius: 22px; }
+  .cloud-session-chip { left: 10px; right: 10px; bottom: 10px; }
+  .cloud-session-chip small { max-width: 150px; }
+}
