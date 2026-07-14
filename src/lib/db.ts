@@ -1,4 +1,16 @@
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  onSnapshot,
+  setDoc,
+  writeBatch,
+  type DocumentData,
+  type Unsubscribe,
+} from 'firebase/firestore';
 import type { Product } from '../types';
+import { firebaseAuth, firebaseDb } from './firebase';
 
 const DB_NAME = 'quimstock-db';
 const DB_VERSION = 1;
@@ -23,29 +35,160 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-async function runRequest<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await openDatabase();
-
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, mode);
-    const request = action(transaction.objectStore(STORE_NAME));
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('Falha ao acessar o banco local.'));
-    transaction.oncomplete = () => db.close();
-    transaction.onerror = () => reject(transaction.error ?? new Error('Falha na transação do banco local.'));
-  });
-}
-
-export async function listProducts(): Promise<Product[]> {
-  const products = await runRequest<Product[]>('readonly', (store) => store.getAll());
+function sortProducts(products: Product[]): Product[] {
   return products.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export function saveProduct(product: Product): Promise<IDBValidKey> {
-  return runRequest('readwrite', (store) => store.put(product));
+async function listLocalProducts(): Promise<Product[]> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readonly');
+    const request = transaction.objectStore(STORE_NAME).getAll();
+
+    request.onsuccess = () => resolve(sortProducts(request.result as Product[]));
+    request.onerror = () => reject(request.error ?? new Error('Falha ao carregar o estoque local.'));
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha na transação local.'));
+  });
 }
 
-export function removeProduct(id: string): Promise<undefined> {
-  return runRequest('readwrite', (store) => store.delete(id)) as Promise<undefined>;
+async function saveLocalProduct(product: Product): Promise<IDBValidKey> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const request = transaction.objectStore(STORE_NAME).put(product);
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('Falha ao salvar no banco local.'));
+    transaction.oncomplete = () => db.close();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha na transação local.'));
+  });
+}
+
+async function removeLocalProduct(id: string): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    transaction.objectStore(STORE_NAME).delete(id);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao excluir do banco local.'));
+  });
+}
+
+async function replaceLocalProducts(products: Product[]): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    store.clear();
+    products.forEach((product) => store.put(product));
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao atualizar o cache local.'));
+  });
+}
+
+function cleanProduct(product: Product): DocumentData {
+  return Object.fromEntries(
+    Object.entries(product).filter(([, value]) => value !== undefined),
+  );
+}
+
+function cloudProductsCollection(userId: string) {
+  if (!firebaseDb) throw new Error('Firebase não configurado.');
+  return collection(firebaseDb, 'users', userId, 'products');
+}
+
+function cloudProductDocument(userId: string, productId: string) {
+  if (!firebaseDb) throw new Error('Firebase não configurado.');
+  return doc(firebaseDb, 'users', userId, 'products', productId);
+}
+
+export async function listProducts(): Promise<Product[]> {
+  return listLocalProducts();
+}
+
+export async function saveProduct(product: Product): Promise<IDBValidKey> {
+  const localKey = await saveLocalProduct(product);
+  const user = firebaseAuth?.currentUser;
+
+  if (user && firebaseDb) {
+    await setDoc(cloudProductDocument(user.uid, product.id), cleanProduct(product));
+  }
+
+  return localKey;
+}
+
+export async function removeProduct(id: string): Promise<void> {
+  await removeLocalProduct(id);
+  const user = firebaseAuth?.currentUser;
+
+  if (user && firebaseDb) {
+    await deleteDoc(cloudProductDocument(user.uid, id));
+  }
+}
+
+export async function migrateLocalProductsToCloud(userId: string): Promise<Product[]> {
+  if (!firebaseDb) return listLocalProducts();
+
+  const [localProducts, cloudSnapshot] = await Promise.all([
+    listLocalProducts(),
+    getDocs(cloudProductsCollection(userId)),
+  ]);
+
+  const merged = new Map<string, Product>();
+  const cloudProducts = cloudSnapshot.docs.map((snapshot) => snapshot.data() as Product);
+
+  cloudProducts.forEach((product) => merged.set(product.id, product));
+
+  const batch = writeBatch(firebaseDb);
+  let pendingWrites = 0;
+
+  localProducts.forEach((localProduct) => {
+    const cloudProduct = merged.get(localProduct.id);
+    if (!cloudProduct || localProduct.updatedAt > cloudProduct.updatedAt) {
+      merged.set(localProduct.id, localProduct);
+      batch.set(cloudProductDocument(userId, localProduct.id), cleanProduct(localProduct));
+      pendingWrites += 1;
+    }
+  });
+
+  if (pendingWrites) await batch.commit();
+
+  const mergedProducts = sortProducts([...merged.values()]);
+  await replaceLocalProducts(mergedProducts);
+  return mergedProducts;
+}
+
+export function subscribeCloudProducts(
+  userId: string,
+  onProducts: (products: Product[]) => void,
+  onError: (error: Error) => void,
+): Unsubscribe {
+  if (!firebaseDb) return () => undefined;
+
+  return onSnapshot(
+    cloudProductsCollection(userId),
+    async (snapshot) => {
+      const products = sortProducts(snapshot.docs.map((item) => item.data() as Product));
+      try {
+        await replaceLocalProducts(products);
+        onProducts(products);
+      } catch (error) {
+        onError(error instanceof Error ? error : new Error('Falha ao atualizar o estoque local.'));
+      }
+    },
+    (error) => onError(error),
+  );
 }
