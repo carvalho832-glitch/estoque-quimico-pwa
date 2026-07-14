@@ -48,13 +48,14 @@ export default function CloudSession({ children }: Props) {
   const [dataRevision, setDataRevision] = useState(0);
 
   useEffect(() => {
-    if (!firebaseConfigured || !firebaseAuth) {
+    const auth = firebaseAuth;
+    if (!firebaseConfigured || !auth) {
       setAuthLoading(false);
       setSyncState('local');
       return;
     }
 
-    return onAuthStateChanged(firebaseAuth, (currentUser) => {
+    return onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
       setSyncState(currentUser ? 'connecting' : 'local');
@@ -64,6 +65,7 @@ export default function CloudSession({ children }: Props) {
   useEffect(() => {
     if (!user || !firebaseConfigured) return;
 
+    const userId = user.uid;
     let active = true;
     let unsubscribe: () => void = () => undefined;
 
@@ -75,12 +77,12 @@ export default function CloudSession({ children }: Props) {
     async function connectCloud() {
       setSyncState(navigator.onLine ? 'connecting' : 'offline');
       try {
-        await migrateLocalProductsToCloud(user.uid);
+        await migrateLocalProductsToCloud(userId);
         if (!active) return;
         notifyProductsChanged();
 
         unsubscribe = subscribeCloudProducts(
-          user.uid,
+          userId,
           () => {
             if (!active) return;
             setSyncState(navigator.onLine ? 'synced' : 'offline');
@@ -114,15 +116,16 @@ export default function CloudSession({ children }: Props) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!firebaseAuth) return;
+    const auth = firebaseAuth;
+    if (!auth) return;
 
     setSubmitting(true);
     setMessage('');
     try {
       if (mode === 'register') {
-        await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
       } else {
-        await signInWithEmailAndPassword(firebaseAuth, email.trim(), password);
+        await signInWithEmailAndPassword(auth, email.trim(), password);
       }
     } catch (error) {
       setMessage(authErrorMessage(error));
@@ -132,7 +135,8 @@ export default function CloudSession({ children }: Props) {
   }
 
   async function handleResetPassword() {
-    if (!firebaseAuth) return;
+    const auth = firebaseAuth;
+    if (!auth) return;
     if (!email.trim()) {
       setMessage('Digite seu e-mail para receber a recuperação de senha.');
       return;
@@ -141,13 +145,19 @@ export default function CloudSession({ children }: Props) {
     setSubmitting(true);
     setMessage('');
     try {
-      await sendPasswordResetEmail(firebaseAuth, email.trim());
+      await sendPasswordResetEmail(auth, email.trim());
       setMessage('E-mail de recuperação enviado. Confira sua caixa de entrada.');
     } catch (error) {
       setMessage(authErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSignOut() {
+    const auth = firebaseAuth;
+    if (!auth) return;
+    await signOut(auth);
   }
 
   if (authLoading) {
@@ -237,7 +247,7 @@ export default function CloudSession({ children }: Props) {
           <small>{user?.email ?? 'Firebase ainda não configurado'}</small>
         </div>
         {user && firebaseAuth && (
-          <button type="button" onClick={() => void signOut(firebaseAuth)}>Sair</button>
+          <button type="button" onClick={() => void handleSignOut()}>Sair</button>
         )}
       </aside>
     </>
