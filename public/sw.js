@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quimstock-v13';
+const CACHE_NAME = 'quimstock-v14';
 const APP_SHELL = ['./', './index.html', './cloud.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
