@@ -1,3 +1,17 @@
+.stats-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.product-card-in-use {
+  border-color: #f3bf8d;
+  background: #fffdf9;
+}
+
+.product-card-in-use[open] {
+  border-color: #eaa66a;
+  box-shadow: 0 9px 24px rgba(161, 82, 28, 0.1);
+}
+
 .dashboard-sync-banner > span.active {
   color: #166534;
   background: #dcfce7;
@@ -82,6 +96,7 @@
 }
 
 @media (max-width: 760px) {
+  .stats-grid,
   .dashboard-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
