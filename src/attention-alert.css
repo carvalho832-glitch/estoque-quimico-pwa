@@ -46,6 +46,36 @@
   font-weight: 750;
 }
 
+.stats-grid article.attention-card-clickable {
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 160ms ease, filter 160ms ease;
+}
+
+.stats-grid article.attention-card-clickable:hover {
+  filter: brightness(0.985);
+}
+
+.stats-grid article.attention-card-clickable:focus-visible {
+  outline: 4px solid rgba(220, 38, 38, 0.2);
+  outline-offset: 4px;
+}
+
+.stats-grid article.attention-card-disabled {
+  cursor: default;
+}
+
+.attention-card-hint {
+  display: block;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(220, 38, 38, 0.13);
+  color: #a44747;
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
 @keyframes attention-card-pulse {
   0%, 100% {
     box-shadow: 0 8px 26px rgba(32, 70, 64, 0.06), 0 0 0 0 rgba(220, 38, 38, 0.08);
