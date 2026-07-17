@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import ProductUsagePanel, { productIsInUse } from './components/ProductUsagePanel';
 import QrLiveScanner from './components/QrLiveScanner';
 import { listProducts, removeProduct, saveProduct } from './lib/db';
 import { exportProductsToPdf } from './lib/excel';
@@ -25,10 +26,21 @@ function createId(): string {
 }
 
 function productToDraft(product: Product): ProductDraft {
-  const { id, createdAt, updatedAt, ...draft } = product;
+  const {
+    id,
+    createdAt,
+    updatedAt,
+    availabilityStatus,
+    currentUsage,
+    usageHistory,
+    ...draft
+  } = product;
   void id;
   void createdAt;
   void updatedAt;
+  void availabilityStatus;
+  void currentUsage;
+  void usageHistory;
   return draft;
 }
 
@@ -70,7 +82,16 @@ export default function App() {
     if (!term) return products;
 
     return products.filter((product) =>
-      [product.name, product.ecode, product.docmat, product.batch, product.location]
+      [
+        product.name,
+        product.ecode,
+        product.docmat,
+        product.batch,
+        product.location,
+        product.currentUsage?.workOrder,
+        product.currentUsage?.aircraft,
+        product.currentUsage?.operator,
+      ]
         .join(' ')
         .toLocaleLowerCase('pt-BR')
         .includes(term),
@@ -80,12 +101,14 @@ export default function App() {
   const stats = useMemo(() => {
     const expired = products.filter((product) => getExpiryLevel(product.expiryDate) === 'expired').length;
     const attention = products.filter((product) => ['critical', 'warning'].includes(getExpiryLevel(product.expiryDate))).length;
+    const inUse = products.filter(productIsInUse).length;
 
     return {
       total: products.length,
       units: products.reduce((sum, product) => sum + product.quantity, 0),
       expired,
       attention,
+      inUse,
     };
   }, [products]);
 
@@ -229,6 +252,9 @@ export default function App() {
       ecode,
       batch: draft.batch.trim().toUpperCase(),
       quantity: Math.max(1, Number(draft.quantity) || 1),
+      availabilityStatus: existing?.availabilityStatus ?? 'stock',
+      currentUsage: existing?.currentUsage,
+      usageHistory: existing?.usageHistory,
       id: existing?.id ?? createId(),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -293,6 +319,7 @@ export default function App() {
         <section className="stats-grid" aria-label="Resumo do estoque">
           <article><strong>{stats.total}</strong><span>Produtos</span></article>
           <article><strong>{stats.units}</strong><span>Unidades</span></article>
+          <article><strong>{stats.inUse}</strong><span>Em uso</span></article>
           <article><strong>{stats.attention}</strong><span>Atenção</span></article>
           <article className={stats.expired ? 'danger-card' : ''}><strong>{stats.expired}</strong><span>Vencidos</span></article>
         </section>
@@ -398,7 +425,7 @@ export default function App() {
         <section className="panel">
           <div className="section-title inventory-title">
             <div>
-              <span className="eyebrow">INVENTÁRIO LOCAL</span>
+              <span className="eyebrow">INVENTÁRIO CONECTADO</span>
               <h2>Produtos cadastrados</h2>
             </div>
             <button className="secondary-button" type="button" onClick={() => exportProductsToPdf(products)} disabled={!products.length}>
@@ -408,7 +435,7 @@ export default function App() {
 
           <label className="search-box">
             <span>🔎</span>
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por Ecode, lote, Docmat ou produto" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por Ecode, lote, OM, avião, operador ou produto" />
           </label>
 
           {loading ? (
@@ -419,8 +446,10 @@ export default function App() {
             <div className="product-list">
               {filteredProducts.map((product) => {
                 const level = getExpiryLevel(product.expiryDate);
+                const inUse = productIsInUse(product);
+
                 return (
-                  <details className="product-card" key={product.id}>
+                  <details className={`product-card ${inUse ? 'product-card-in-use' : ''}`} key={product.id}>
                     <summary className="product-card-summary">
                       <div className="product-summary-main">
                         <h3>{product.name}</h3>
@@ -430,6 +459,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="product-summary-status">
+                        <span className={`availability-badge ${inUse ? 'in-use' : 'stock'}`}>{inUse ? 'Em uso' : 'Estoque'}</span>
                         <span className={`status-badge status-${level}`}>{getExpiryLabel(product.expiryDate)}</span>
                         <span className="expand-indicator" aria-hidden="true">⌄</span>
                       </div>
@@ -443,6 +473,9 @@ export default function App() {
                       </dl>
                       {product.docmat && <p className="notes"><strong>Docmat:</strong> {product.docmat}</p>}
                       {product.notes && <p className="notes">{product.notes}</p>}
+
+                      <ProductUsagePanel product={product} onUpdated={refreshProducts} onMessage={setMessage} />
+
                       <div className="card-actions">
                         <button type="button" className="ghost-button" onClick={() => editProduct(product)}>Editar</button>
                         <button type="button" className="delete-button" onClick={() => deleteProduct(product)}>Excluir</button>
@@ -456,7 +489,7 @@ export default function App() {
         </section>
       </main>
 
-      <footer>Dados armazenados localmente neste aparelho · QuimStock MVP</footer>
+      <footer>Estoque sincronizado com login · QuimStock</footer>
     </div>
   );
 }
