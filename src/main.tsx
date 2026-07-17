@@ -7,6 +7,7 @@ import './styles.css';
 import './dashboard-usage.css';
 import './attention-alert.css';
 import './attention-alert';
+import './in-use-alert';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
