@@ -1,0 +1,80 @@
+.stats-grid article.attention-alert-active {
+  position: relative;
+  isolation: isolate;
+  border-color: rgba(220, 38, 38, 0.48);
+  background: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,241,241,0.94));
+  animation: attention-card-pulse 2.4s ease-in-out infinite;
+}
+
+.stats-grid article.attention-alert-active::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  z-index: -1;
+  border-radius: 22px;
+  background: rgba(239, 68, 68, 0.24);
+  filter: blur(13px);
+  opacity: 0.35;
+  animation: attention-aura-pulse 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.stats-grid article.attention-alert-active::after {
+  content: '!';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  color: #fff;
+  background: #dc2626;
+  box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.12);
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.stats-grid article.attention-alert-active > strong {
+  color: #b91c1c;
+  text-shadow: 0 0 18px rgba(220, 38, 38, 0.16);
+}
+
+.stats-grid article.attention-alert-active > span {
+  color: #8f2f2f;
+  font-weight: 750;
+}
+
+@keyframes attention-card-pulse {
+  0%, 100% {
+    box-shadow: 0 8px 26px rgba(32, 70, 64, 0.06), 0 0 0 0 rgba(220, 38, 38, 0.08);
+    transform: translateZ(0) scale(1);
+  }
+  50% {
+    box-shadow: 0 12px 34px rgba(32, 70, 64, 0.08), 0 0 0 4px rgba(220, 38, 38, 0.14), 0 0 30px rgba(239, 68, 68, 0.28);
+    transform: translateZ(0) scale(1.012);
+  }
+}
+
+@keyframes attention-aura-pulse {
+  0%, 100% {
+    opacity: 0.18;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-grid article.attention-alert-active,
+  .stats-grid article.attention-alert-active::before {
+    animation: none;
+  }
+
+  .stats-grid article.attention-alert-active {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14), 0 0 24px rgba(239, 68, 68, 0.22);
+  }
+}
