@@ -5,6 +5,8 @@ import CloudSession from './components/CloudSession';
 import Dashboard from './Dashboard';
 import './styles.css';
 import './dashboard-usage.css';
+import './attention-alert.css';
+import './attention-alert';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
