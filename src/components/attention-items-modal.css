@@ -1,0 +1,257 @@
+.attention-items-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 27, 25, 0.42);
+  backdrop-filter: blur(9px);
+  animation: attention-items-fade 180ms ease-out;
+}
+
+.attention-items-modal {
+  width: min(720px, 100%);
+  max-height: min(86vh, 780px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(248, 113, 113, 0.32);
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.34);
+  animation: attention-items-rise 220ms ease-out;
+}
+
+.attention-items-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 22px 17px;
+  border-bottom: 1px solid #f3dddd;
+  background: linear-gradient(145deg, #fff, #fff5f5);
+}
+
+.attention-items-header > div > span {
+  color: #b91c1c;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.attention-items-header h2 {
+  margin: 5px 0 4px;
+  color: #6f1d1d;
+  font-size: clamp(1.45rem, 5vw, 2rem);
+  letter-spacing: -0.035em;
+}
+
+.attention-items-header p {
+  margin: 0;
+  color: #8b5a5a;
+  font-size: 0.86rem;
+}
+
+.attention-items-close {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  color: #9f2727;
+  background: #fee2e2;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.attention-items-list {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 18px 22px;
+  overscroll-behavior: contain;
+}
+
+.attention-item-card {
+  padding: 15px;
+  border: 1px solid #eadede;
+  border-left-width: 5px;
+  border-radius: 17px;
+  background: #fffdfd;
+}
+
+.attention-item-card.warning {
+  border-left-color: #d97706;
+  background: linear-gradient(145deg, #fff, #fffbeb);
+}
+
+.attention-item-card.critical {
+  border-left-color: #dc2626;
+  background: linear-gradient(145deg, #fff, #fff1f2);
+}
+
+.attention-item-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.attention-item-topline > div {
+  min-width: 0;
+}
+
+.attention-item-topline strong,
+.attention-item-topline span {
+  display: block;
+}
+
+.attention-item-topline strong {
+  color: #473131;
+  font-size: 0.96rem;
+  line-height: 1.3;
+}
+
+.attention-item-topline > div > span {
+  margin-top: 4px;
+  color: #846f6f;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.attention-item-level {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.attention-item-level.warning {
+  color: #854d0e;
+  background: #fef3c7;
+}
+
+.attention-item-level.critical {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.attention-item-data {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.attention-item-data div {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.attention-item-data dt {
+  color: #947878;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.attention-item-data dd {
+  margin: 4px 0 0;
+  color: #533b3b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.attention-items-empty {
+  display: grid;
+  gap: 5px;
+  padding: 24px;
+  border: 1px dashed #e5bcbc;
+  border-radius: 17px;
+  text-align: center;
+  background: #fff8f8;
+}
+
+.attention-items-empty strong {
+  color: #7f2929;
+}
+
+.attention-items-empty span {
+  color: #987171;
+  font-size: 0.78rem;
+}
+
+.attention-items-footer {
+  padding: 14px 22px 20px;
+  border-top: 1px solid #f1dfdf;
+  background: #fffafa;
+}
+
+.attention-items-footer button {
+  width: 100%;
+  border: 0;
+  border-radius: 13px;
+  padding: 12px 15px;
+  color: #fff;
+  background: #b91c1c;
+  font-weight: 850;
+}
+
+@keyframes attention-items-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes attention-items-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 520px) {
+  .attention-items-backdrop {
+    padding: 10px;
+  }
+
+  .attention-items-modal {
+    max-height: 90vh;
+    border-radius: 22px;
+  }
+
+  .attention-items-header,
+  .attention-items-list,
+  .attention-items-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .attention-item-topline {
+    flex-direction: column;
+  }
+
+  .attention-item-data {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attention-items-backdrop,
+  .attention-items-modal {
+    animation: none;
+  }
+}
