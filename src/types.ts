@@ -1,3 +1,13 @@
+export type ProductAvailabilityStatus = 'stock' | 'in-use';
+
+export type ProductUsage = {
+  workOrder: string;
+  aircraft: string;
+  operator: string;
+  startedAt: string;
+  returnedAt?: string;
+};
+
 export type Product = {
   id: string;
   name: string;
@@ -13,11 +23,17 @@ export type Product = {
   location: string;
   notes: string;
   imageName?: string;
+  availabilityStatus?: ProductAvailabilityStatus;
+  currentUsage?: ProductUsage;
+  usageHistory?: ProductUsage[];
   createdAt: string;
   updatedAt: string;
 };
 
-export type ProductDraft = Omit<Product, 'id' | 'createdAt' | 'updatedAt'>;
+export type ProductDraft = Omit<
+  Product,
+  'id' | 'createdAt' | 'updatedAt' | 'availabilityStatus' | 'currentUsage' | 'usageHistory'
+>;
 
 export type ExpiryLevel = 'expired' | 'critical' | 'warning' | 'valid' | 'unknown';
 

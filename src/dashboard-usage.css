@@ -1,0 +1,111 @@
+.stats-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.product-card-in-use {
+  border-color: #f3bf8d;
+  background: #fffdf9;
+}
+
+.product-card-in-use[open] {
+  border-color: #eaa66a;
+  box-shadow: 0 9px 24px rgba(161, 82, 28, 0.1);
+}
+
+.dashboard-sync-banner > span.active {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.dashboard-stats {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.dashboard-stats article.usage > strong {
+  color: #c2410c;
+}
+
+.dashboard-filters {
+  grid-template-columns: minmax(260px, 1fr) repeat(4, minmax(145px, auto));
+}
+
+.dashboard-table {
+  min-width: 1320px;
+}
+
+.dashboard-row-in-use {
+  background: #fffaf5;
+}
+
+.dashboard-availability {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 68px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dashboard-availability.stock {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.dashboard-availability.in-use {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.dashboard-usage-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 180px;
+}
+
+.dashboard-usage-cell strong {
+  color: #7c2d12;
+  font-size: 0.76rem;
+}
+
+.dashboard-usage-cell span,
+.dashboard-usage-cell small {
+  color: #7c6656;
+  font-size: 0.68rem;
+}
+
+.dashboard-available-text {
+  color: #5d7a74;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 1320px) {
+  .dashboard-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-search {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .stats-grid,
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-search {
+    grid-column: auto;
+  }
+}

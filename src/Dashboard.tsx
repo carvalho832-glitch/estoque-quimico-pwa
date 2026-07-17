@@ -6,6 +6,7 @@ import type { ExpiryLevel, Product } from './types';
 import './dashboard.css';
 
 type StatusFilter = 'all' | 'expired' | 'critical' | 'warning' | 'valid';
+type AvailabilityFilter = 'all' | 'stock' | 'in-use';
 type SortKey = 'expiry' | 'name' | 'location' | 'updated';
 
 function statusLabel(level: ExpiryLevel): string {
@@ -23,6 +24,10 @@ function formatUpdatedAt(value: string): string {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
+}
+
+function productIsInUse(product: Product): boolean {
+  return product.availabilityStatus === 'in-use' && Boolean(product.currentUsage);
 }
 
 function compareProducts(a: Product, b: Product, sortKey: SortKey): number {
@@ -43,6 +48,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
   const [locationFilter, setLocationFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('expiry');
 
@@ -73,6 +79,7 @@ export default function Dashboard() {
     const critical = products.filter((product) => getExpiryLevel(product.expiryDate) === 'critical').length;
     const warning = products.filter((product) => getExpiryLevel(product.expiryDate) === 'warning').length;
     const locationsCount = new Set(products.map((product) => product.location.trim()).filter(Boolean)).size;
+    const inUse = products.filter(productIsInUse).length;
 
     return {
       products: products.length,
@@ -81,6 +88,7 @@ export default function Dashboard() {
       critical,
       warning,
       locations: locationsCount,
+      inUse,
     };
   }, [products]);
 
@@ -95,6 +103,9 @@ export default function Dashboard() {
           product.batch,
           product.docmat,
           product.location,
+          product.currentUsage?.workOrder,
+          product.currentUsage?.aircraft,
+          product.currentUsage?.operator,
         ]
           .join(' ')
           .toLocaleLowerCase('pt-BR')
@@ -102,12 +113,14 @@ export default function Dashboard() {
 
         const level = getExpiryLevel(product.expiryDate);
         const matchesStatus = statusFilter === 'all' || level === statusFilter;
+        const availability = productIsInUse(product) ? 'in-use' : 'stock';
+        const matchesAvailability = availabilityFilter === 'all' || availability === availabilityFilter;
         const matchesLocation = locationFilter === 'all' || product.location === locationFilter;
 
-        return matchesQuery && matchesStatus && matchesLocation;
+        return matchesQuery && matchesStatus && matchesAvailability && matchesLocation;
       })
       .sort((a, b) => compareProducts(a, b, sortKey));
-  }, [products, query, statusFilter, locationFilter, sortKey]);
+  }, [products, query, statusFilter, availabilityFilter, locationFilter, sortKey]);
 
   const priorityProducts = useMemo(() => {
     return [...products]
@@ -133,8 +146,8 @@ export default function Dashboard() {
         </nav>
 
         <div className="dashboard-storage-status">
-          <span>● Dados locais</span>
-          <p>Este painel ainda mostra o estoque salvo neste navegador.</p>
+          <span>● Nuvem ativa</span>
+          <p>Celular e computador compartilham o mesmo estoque e os mesmos status de uso.</p>
         </div>
       </aside>
 
@@ -143,7 +156,7 @@ export default function Dashboard() {
           <div>
             <span className="dashboard-kicker">CONTROLE DE ESTOQUE QUÍMICO</span>
             <h1>Painel do estoque</h1>
-            <p>Acompanhe validade, quantidade e localização em uma única tela.</p>
+            <p>Acompanhe validade, localização e materiais atualmente em uso.</p>
           </div>
           <div className="dashboard-header-actions">
             <button type="button" className="dashboard-button secondary" onClick={() => void refresh()}>
@@ -162,10 +175,10 @@ export default function Dashboard() {
 
         <section className="dashboard-sync-banner">
           <div>
-            <strong>Próxima etapa: sincronização em nuvem</strong>
-            <p>Quando ativada, os registros feitos pelo celular aparecerão automaticamente neste painel.</p>
+            <strong>Sincronização em nuvem ativa</strong>
+            <p>Retiradas e devoluções registradas no celular aparecem neste painel.</p>
           </div>
-          <span>Em preparação</span>
+          <span className="active">Conectado</span>
         </section>
 
         <section className="dashboard-stats" aria-label="Indicadores do estoque">
@@ -173,6 +186,11 @@ export default function Dashboard() {
             <span>Produtos</span>
             <strong>{stats.products}</strong>
             <small>{stats.units} unidade(s)</small>
+          </article>
+          <article className="usage">
+            <span>Em uso</span>
+            <strong>{stats.inUse}</strong>
+            <small>Fora do estoque</small>
           </article>
           <article className="danger">
             <span>Vencidos</span>
@@ -268,12 +286,18 @@ export default function Dashboard() {
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar produto, Ecode, lote, Docmat ou local"
+                placeholder="Buscar produto, Ecode, lote, OM, avião ou operador"
               />
             </label>
 
+            <select value={availabilityFilter} onChange={(event) => setAvailabilityFilter(event.target.value as AvailabilityFilter)}>
+              <option value="all">Estoque e em uso</option>
+              <option value="stock">Somente no estoque</option>
+              <option value="in-use">Somente em uso</option>
+            </select>
+
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
-              <option value="all">Todos os status</option>
+              <option value="all">Todas as validades</option>
               <option value="expired">Vencidos</option>
               <option value="critical">Até 30 dias</option>
               <option value="warning">31 a 90 dias</option>
@@ -305,10 +329,12 @@ export default function Dashboard() {
                 <thead>
                   <tr>
                     <th>Produto</th>
+                    <th>Status</th>
                     <th>Ecode</th>
                     <th>Lote</th>
                     <th>DV</th>
                     <th>Restante</th>
+                    <th>Uso atual</th>
                     <th>Qtd.</th>
                     <th>Local</th>
                     <th>Atualizado</th>
@@ -317,13 +343,30 @@ export default function Dashboard() {
                 <tbody>
                   {filteredProducts.map((product) => {
                     const level = getExpiryLevel(product.expiryDate);
+                    const inUse = productIsInUse(product);
                     return (
-                      <tr key={product.id}>
+                      <tr key={product.id} className={inUse ? 'dashboard-row-in-use' : ''}>
                         <td><strong>{product.name}</strong>{product.docmat && <small>Docmat {product.docmat}</small>}</td>
+                        <td>
+                          <span className={`dashboard-availability ${inUse ? 'in-use' : 'stock'}`}>
+                            {inUse ? 'Em uso' : 'Estoque'}
+                          </span>
+                        </td>
                         <td>{product.ecode}</td>
                         <td>{product.batch}</td>
                         <td>{formatDate(product.expiryDate)}</td>
                         <td><span className={`dashboard-status ${level}`}>{getExpiryLabel(product.expiryDate)}</span></td>
+                        <td>
+                          {inUse && product.currentUsage ? (
+                            <div className="dashboard-usage-cell">
+                              <strong>{product.currentUsage.workOrder}</strong>
+                              <span>{product.currentUsage.aircraft}</span>
+                              <small>{product.currentUsage.operator} · desde {formatUpdatedAt(product.currentUsage.startedAt)}</small>
+                            </div>
+                          ) : (
+                            <span className="dashboard-available-text">Disponível</span>
+                          )}
+                        </td>
                         <td>{product.quantity}</td>
                         <td>{product.location || 'Não informado'}</td>
                         <td>{formatUpdatedAt(product.updatedAt)}</td>
