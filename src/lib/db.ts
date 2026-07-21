@@ -36,7 +36,11 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 function sortProducts(products: Product[]): Product[] {
-  return products.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return products.sort((a, b) => {
+    const createdOrder = b.createdAt.localeCompare(a.createdAt);
+    if (createdOrder !== 0) return createdOrder;
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
 }
 
 async function listLocalProducts(): Promise<Product[]> {
