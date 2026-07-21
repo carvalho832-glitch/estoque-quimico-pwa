@@ -1,0 +1,109 @@
+.stock-control {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #cfe3de;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #f8fcfb, #ffffff);
+}
+
+.stock-control-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stock-control-heading > div { display: grid; gap: 3px; }
+.stock-control-heading strong { color: #194a44; font-size: 1rem; }
+.stock-control-kicker { color: #718681; font-size: 0.66rem; font-weight: 850; letter-spacing: 0.09em; }
+
+.stock-level-badge {
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-align: center;
+}
+.stock-level-badge.stock-level-normal { color: #166534; background: #dcfce7; }
+.stock-level-badge.stock-level-low { color: #854d0e; background: #fef3c7; }
+.stock-level-badge.stock-level-critical { color: #9a3412; background: #ffedd5; }
+.stock-level-badge.stock-level-empty { color: #991b1b; background: #fee2e2; }
+
+.stock-stepper {
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 13px;
+}
+
+.stock-stepper button {
+  border: 0;
+  border-radius: 13px;
+  color: #0f5f57;
+  background: #dff4ef;
+  font-size: 1.65rem;
+  font-weight: 900;
+  min-height: 58px;
+}
+
+.stock-stepper button:active { transform: scale(0.96); }
+.stock-stepper > div {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  border: 1px solid #d5e5e1;
+  border-radius: 13px;
+  background: #f2f8f6;
+}
+.stock-stepper strong { color: #184a44; font-size: 1.45rem; line-height: 1; }
+.stock-stepper span { margin-top: 4px; color: #748783; font-size: 0.68rem; }
+
+.stock-minimum-button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 11px;
+  padding: 11px 12px;
+  border: 1px solid #d8e7e3;
+  border-radius: 13px;
+  color: #28534d;
+  background: #fbfdfd;
+  text-align: left;
+}
+.stock-minimum-button > span:first-child { display: grid; gap: 2px; }
+.stock-minimum-button small { color: #748783; }
+
+.stock-minimum-editor {
+  display: grid;
+  gap: 10px;
+  margin-top: 11px;
+  padding: 11px;
+  border-radius: 13px;
+  background: #f2f8f6;
+}
+.stock-minimum-editor label { display: grid; gap: 6px; }
+.stock-minimum-editor label span { color: #3c625d; font-size: 0.78rem; font-weight: 800; }
+.stock-minimum-editor input {
+  width: 100%;
+  border: 1px solid #cdded9;
+  border-radius: 11px;
+  padding: 11px 12px;
+  color: #153b37;
+  background: white;
+}
+.stock-minimum-editor > div { display: flex; justify-content: flex-end; gap: 8px; }
+.stock-minimum-editor button { border: 0; border-radius: 11px; padding: 10px 12px; font-weight: 800; }
+.stock-minimum-cancel { color: #526d69; background: #e6efed; }
+.stock-minimum-save { color: white; background: #0f766e; }
+
+.stock-control.stock-level-low { border-color: #ead58a; background: linear-gradient(180deg, #fffdf5, #ffffff); }
+.stock-control.stock-level-critical { border-color: #efb27f; background: linear-gradient(180deg, #fff8f2, #ffffff); }
+.stock-control.stock-level-empty { border-color: #efaaa4; background: linear-gradient(180deg, #fff6f5, #ffffff); }
+
+@media (max-width: 420px) {
+  .stock-control-heading { align-items: stretch; flex-direction: column; }
+  .stock-level-badge { align-self: flex-start; }
+}
