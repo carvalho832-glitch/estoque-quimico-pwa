@@ -129,6 +129,9 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
     }
   }
 
+  const minusUnavailable = saving || displayQuantity <= 0;
+  const plusUnavailable = saving;
+
   return (
     <section className={`stock-control stock-level-${level}`}>
       <div className="stock-control-heading">
@@ -140,9 +143,23 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       </div>
 
       <div className="stock-stepper" aria-label="Controle rápido de quantidade">
-        <button type="button" onClick={() => void updateQuantity(displayQuantity - 1)} disabled={saving || displayQuantity <= 0} aria-label="Diminuir uma unidade">−</button>
+        <button
+          type="button"
+          onClick={() => void updateQuantity(displayQuantity - 1)}
+          aria-disabled={minusUnavailable}
+          aria-label="Diminuir uma unidade"
+        >
+          −
+        </button>
         <div><strong>{displayQuantity}</strong><span>unidade(s)</span></div>
-        <button type="button" onClick={() => void updateQuantity(displayQuantity + 1)} disabled={saving} aria-label="Adicionar uma unidade">+</button>
+        <button
+          type="button"
+          onClick={() => void updateQuantity(displayQuantity + 1)}
+          aria-disabled={plusUnavailable}
+          aria-label="Adicionar uma unidade"
+        >
+          +
+        </button>
       </div>
 
       {editingMinimum ? (
