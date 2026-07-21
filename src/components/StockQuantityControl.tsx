@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { saveProduct } from '../lib/db';
 import type { Product } from '../types';
 import './stock-quantity.css';
@@ -10,13 +10,6 @@ type Props = {
 };
 
 type StockLevel = 'normal' | 'low' | 'critical' | 'empty';
-
-type PendingCardState = {
-  productId: string;
-  cardTop: number;
-};
-
-const CARD_STATE_KEY = 'quimstock-pending-open-card';
 
 function getStockLevel(quantity: number, minimum?: number): StockLevel {
   if (quantity <= 0) return 'empty';
@@ -33,72 +26,94 @@ const LEVEL_LABELS: Record<StockLevel, string> = {
   empty: 'Sem estoque',
 };
 
+function findProductCard(product: Product): HTMLDetailsElement | null {
+  const cards = Array.from(document.querySelectorAll<HTMLDetailsElement>('details.product-card'));
+  return cards.find((card) => {
+    const essentialData = card.querySelector('.product-essential-data')?.textContent ?? '';
+    return essentialData.includes(product.ecode) && essentialData.includes(product.batch);
+  }) ?? null;
+}
+
 export default function StockQuantityControl({ product, onUpdated, onMessage }: Props) {
-  const sectionRef = useRef<HTMLElement>(null);
   const [saving, setSaving] = useState(false);
   const [editingMinimum, setEditingMinimum] = useState(false);
   const [minimumDraft, setMinimumDraft] = useState(String(product.lowStockThreshold ?? ''));
+  const [displayQuantity, setDisplayQuantity] = useState(product.quantity);
+
+  useEffect(() => {
+    setDisplayQuantity(product.quantity);
+  }, [product.quantity]);
+
+  useEffect(() => {
+    if (!editingMinimum) setMinimumDraft(String(product.lowStockThreshold ?? ''));
+  }, [editingMinimum, product.lowStockThreshold]);
 
   const level = useMemo(
-    () => getStockLevel(product.quantity, product.lowStockThreshold),
-    [product.quantity, product.lowStockThreshold],
+    () => getStockLevel(displayQuantity, product.lowStockThreshold),
+    [displayQuantity, product.lowStockThreshold],
   );
 
-  useLayoutEffect(() => {
-    const rawState = sessionStorage.getItem(CARD_STATE_KEY);
-    if (!rawState) return;
+  async function keepCardOpenDuringSync(action: () => Promise<void>) {
+    const initialCard = findProductCard(product);
+    const shouldStayOpen = initialCard?.open ?? false;
+    const initialTop = initialCard?.getBoundingClientRect().top ?? null;
+    let scrollCorrected = false;
 
-    let pendingState: PendingCardState;
-    try {
-      pendingState = JSON.parse(rawState) as PendingCardState;
-    } catch {
-      sessionStorage.removeItem(CARD_STATE_KEY);
-      return;
-    }
+    const restoreCard = () => {
+      if (!shouldStayOpen) return;
+      const card = findProductCard(product);
+      if (!card) return;
 
-    if (pendingState.productId !== product.id) return;
+      if (!card.open) card.open = true;
 
-    const details = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
-    if (!details) return;
-
-    details.open = true;
-    sessionStorage.removeItem(CARD_STATE_KEY);
-
-    requestAnimationFrame(() => {
-      const currentTop = details.getBoundingClientRect().top;
-      window.scrollBy({ top: currentTop - pendingState.cardTop, behavior: 'auto' });
-    });
-  }, [product.id, product.quantity, product.lowStockThreshold]);
-
-  function rememberOpenCard() {
-    const details = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
-    if (!details) return;
-
-    const pendingState: PendingCardState = {
-      productId: product.id,
-      cardTop: details.getBoundingClientRect().top,
+      if (!scrollCorrected && initialTop !== null) {
+        const currentTop = card.getBoundingClientRect().top;
+        const difference = currentTop - initialTop;
+        if (Math.abs(difference) > 2) window.scrollBy({ top: difference, behavior: 'auto' });
+        scrollCorrected = true;
+      }
     };
 
-    sessionStorage.setItem(CARD_STATE_KEY, JSON.stringify(pendingState));
-  }
+    const observer = new MutationObserver(() => {
+      requestAnimationFrame(restoreCard);
+    });
 
-  async function refreshWithoutClosingCard() {
-    rememberOpenCard();
-    await onUpdated();
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['open'],
+    });
+
+    try {
+      await action();
+      restoreCard();
+      requestAnimationFrame(() => requestAnimationFrame(restoreCard));
+      window.setTimeout(restoreCard, 250);
+      window.setTimeout(restoreCard, 700);
+      window.setTimeout(restoreCard, 1500);
+    } finally {
+      window.setTimeout(() => observer.disconnect(), 3000);
+    }
   }
 
   async function updateQuantity(nextQuantity: number) {
     const quantity = Math.max(0, nextQuantity);
-    if (quantity === product.quantity || saving) return;
+    if (quantity === displayQuantity || saving) return;
 
+    const previousQuantity = displayQuantity;
+    setDisplayQuantity(quantity);
     setSaving(true);
+
     try {
-      await saveProduct({ ...product, quantity, updatedAt: new Date().toISOString() });
-      await refreshWithoutClosingCard();
+      await keepCardOpenDuringSync(async () => {
+        await saveProduct({ ...product, quantity, updatedAt: new Date().toISOString() });
+        await onUpdated();
+      });
       onMessage(`${product.name}: quantidade atualizada para ${quantity} unidade(s).`);
     } catch (error) {
       console.error(error);
-      sessionStorage.removeItem(CARD_STATE_KEY);
+      setDisplayQuantity(previousQuantity);
       onMessage('Não foi possível atualizar a quantidade do produto.');
     } finally {
       setSaving(false);
@@ -112,8 +127,10 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
 
     setSaving(true);
     try {
-      await saveProduct({ ...product, lowStockThreshold, updatedAt: new Date().toISOString() });
-      await refreshWithoutClosingCard();
+      await keepCardOpenDuringSync(async () => {
+        await saveProduct({ ...product, lowStockThreshold, updatedAt: new Date().toISOString() });
+        await onUpdated();
+      });
       setEditingMinimum(false);
       setMinimumDraft(String(lowStockThreshold ?? ''));
       onMessage(
@@ -123,7 +140,6 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       );
     } catch (error) {
       console.error(error);
-      sessionStorage.removeItem(CARD_STATE_KEY);
       onMessage('Não foi possível salvar o nível mínimo de estoque.');
     } finally {
       setSaving(false);
@@ -131,7 +147,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
   }
 
   return (
-    <section ref={sectionRef} className={`stock-control stock-level-${level}`}>
+    <section className={`stock-control stock-level-${level}`}>
       <div className="stock-control-heading">
         <div>
           <span className="stock-control-kicker">CONTROLE DE ESTOQUE</span>
@@ -141,9 +157,9 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       </div>
 
       <div className="stock-stepper" aria-label="Controle rápido de quantidade">
-        <button type="button" onClick={() => void updateQuantity(product.quantity - 1)} disabled={saving || product.quantity <= 0} aria-label="Diminuir uma unidade">−</button>
-        <div><strong>{product.quantity}</strong><span>unidade(s)</span></div>
-        <button type="button" onClick={() => void updateQuantity(product.quantity + 1)} disabled={saving} aria-label="Adicionar uma unidade">+</button>
+        <button type="button" onClick={() => void updateQuantity(displayQuantity - 1)} disabled={saving || displayQuantity <= 0} aria-label="Diminuir uma unidade">−</button>
+        <div><strong>{displayQuantity}</strong><span>unidade(s)</span></div>
+        <button type="button" onClick={() => void updateQuantity(displayQuantity + 1)} disabled={saving} aria-label="Adicionar uma unidade">+</button>
       </div>
 
       {editingMinimum ? (
