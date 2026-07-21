@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { saveProduct } from '../lib/db';
 import type { Product } from '../types';
 import './stock-quantity.css';
@@ -27,6 +27,7 @@ const LEVEL_LABELS: Record<StockLevel, string> = {
 };
 
 export default function StockQuantityControl({ product, onUpdated, onMessage }: Props) {
+  const sectionRef = useRef<HTMLElement>(null);
   const [saving, setSaving] = useState(false);
   const [editingMinimum, setEditingMinimum] = useState(false);
   const [minimumDraft, setMinimumDraft] = useState(String(product.lowStockThreshold ?? ''));
@@ -36,6 +37,28 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
     [product.quantity, product.lowStockThreshold],
   );
 
+  async function refreshWithoutClosingCard() {
+    const detailsBeforeUpdate = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
+    const cardTopBeforeUpdate = detailsBeforeUpdate?.getBoundingClientRect().top ?? null;
+    const wasOpen = detailsBeforeUpdate?.open ?? false;
+
+    await onUpdated();
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+
+    const detailsAfterUpdate = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
+    if (!detailsAfterUpdate) return;
+
+    if (wasOpen) detailsAfterUpdate.open = true;
+
+    if (cardTopBeforeUpdate !== null) {
+      const cardTopAfterUpdate = detailsAfterUpdate.getBoundingClientRect().top;
+      window.scrollBy({ top: cardTopAfterUpdate - cardTopBeforeUpdate, behavior: 'auto' });
+    }
+  }
+
   async function updateQuantity(nextQuantity: number) {
     const quantity = Math.max(0, nextQuantity);
     if (quantity === product.quantity || saving) return;
@@ -43,7 +66,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
     setSaving(true);
     try {
       await saveProduct({ ...product, quantity, updatedAt: new Date().toISOString() });
-      await onUpdated();
+      await refreshWithoutClosingCard();
       onMessage(`${product.name}: quantidade atualizada para ${quantity} unidade(s).`);
     } catch (error) {
       console.error(error);
@@ -61,7 +84,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
     setSaving(true);
     try {
       await saveProduct({ ...product, lowStockThreshold, updatedAt: new Date().toISOString() });
-      await onUpdated();
+      await refreshWithoutClosingCard();
       setEditingMinimum(false);
       setMinimumDraft(String(lowStockThreshold ?? ''));
       onMessage(
@@ -78,7 +101,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
   }
 
   return (
-    <section className={`stock-control stock-level-${level}`}>
+    <section ref={sectionRef} className={`stock-control stock-level-${level}`}>
       <div className="stock-control-heading">
         <div>
           <span className="stock-control-kicker">CONTROLE DE ESTOQUE</span>
