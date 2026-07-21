@@ -52,6 +52,7 @@ export type Product = {
   qrRaw?: string;
   expiryDate: string;
   quantity: number;
+  lowStockThreshold?: number;
   location: string;
   notes: string;
   imageName?: string;
