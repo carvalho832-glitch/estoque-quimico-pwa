@@ -1,4 +1,5 @@
 import type { TechnicalSheet } from '../types';
+import './technical-sheet.css';
 
 type Props = {
   technicalSheet?: TechnicalSheet;
