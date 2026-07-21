@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { saveProduct } from '../lib/db';
+import { getTechnicalSheet } from '../lib/technicalSheets';
 import type { Product, ProductUsage } from '../types';
+import TechnicalSheetPanel from './TechnicalSheetPanel';
 import './product-usage.css';
 
 type Props = {
@@ -49,6 +51,7 @@ export default function ProductUsagePanel({ product, onUpdated, onMessage }: Pro
   const [error, setError] = useState('');
 
   const inUse = productIsInUse(product);
+  const technicalSheet = getTechnicalSheet(product);
 
   const historyEntries = useMemo<HistoryEntry[]>(() => {
     const entries: HistoryEntry[] = (product.usageHistory ?? []).map((usage) => ({
@@ -229,6 +232,8 @@ export default function ProductUsagePanel({ product, onUpdated, onMessage }: Pro
 
   return (
     <>
+      <TechnicalSheetPanel technicalSheet={technicalSheet} />
+
       <section className={`usage-panel ${inUse ? 'is-in-use' : 'is-in-stock'}`}>
         <div className="usage-panel-heading">
           <div>
