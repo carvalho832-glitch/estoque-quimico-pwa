@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { saveProduct } from '../lib/db';
 import type { Product } from '../types';
 import './stock-quantity.css';
@@ -10,6 +10,13 @@ type Props = {
 };
 
 type StockLevel = 'normal' | 'low' | 'critical' | 'empty';
+
+type PendingCardState = {
+  productId: string;
+  cardTop: number;
+};
+
+const CARD_STATE_KEY = 'quimstock-pending-open-card';
 
 function getStockLevel(quantity: number, minimum?: number): StockLevel {
   if (quantity <= 0) return 'empty';
@@ -37,26 +44,47 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
     [product.quantity, product.lowStockThreshold],
   );
 
-  async function refreshWithoutClosingCard() {
-    const detailsBeforeUpdate = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
-    const cardTopBeforeUpdate = detailsBeforeUpdate?.getBoundingClientRect().top ?? null;
-    const wasOpen = detailsBeforeUpdate?.open ?? false;
+  useLayoutEffect(() => {
+    const rawState = sessionStorage.getItem(CARD_STATE_KEY);
+    if (!rawState) return;
 
-    await onUpdated();
-
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-
-    const detailsAfterUpdate = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
-    if (!detailsAfterUpdate) return;
-
-    if (wasOpen) detailsAfterUpdate.open = true;
-
-    if (cardTopBeforeUpdate !== null) {
-      const cardTopAfterUpdate = detailsAfterUpdate.getBoundingClientRect().top;
-      window.scrollBy({ top: cardTopAfterUpdate - cardTopBeforeUpdate, behavior: 'auto' });
+    let pendingState: PendingCardState;
+    try {
+      pendingState = JSON.parse(rawState) as PendingCardState;
+    } catch {
+      sessionStorage.removeItem(CARD_STATE_KEY);
+      return;
     }
+
+    if (pendingState.productId !== product.id) return;
+
+    const details = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
+    if (!details) return;
+
+    details.open = true;
+    sessionStorage.removeItem(CARD_STATE_KEY);
+
+    requestAnimationFrame(() => {
+      const currentTop = details.getBoundingClientRect().top;
+      window.scrollBy({ top: currentTop - pendingState.cardTop, behavior: 'auto' });
+    });
+  }, [product.id, product.quantity, product.lowStockThreshold]);
+
+  function rememberOpenCard() {
+    const details = sectionRef.current?.closest('details.product-card') as HTMLDetailsElement | null;
+    if (!details) return;
+
+    const pendingState: PendingCardState = {
+      productId: product.id,
+      cardTop: details.getBoundingClientRect().top,
+    };
+
+    sessionStorage.setItem(CARD_STATE_KEY, JSON.stringify(pendingState));
+  }
+
+  async function refreshWithoutClosingCard() {
+    rememberOpenCard();
+    await onUpdated();
   }
 
   async function updateQuantity(nextQuantity: number) {
@@ -70,6 +98,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       onMessage(`${product.name}: quantidade atualizada para ${quantity} unidade(s).`);
     } catch (error) {
       console.error(error);
+      sessionStorage.removeItem(CARD_STATE_KEY);
       onMessage('Não foi possível atualizar a quantidade do produto.');
     } finally {
       setSaving(false);
@@ -94,6 +123,7 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       );
     } catch (error) {
       console.error(error);
+      sessionStorage.removeItem(CARD_STATE_KEY);
       onMessage('Não foi possível salvar o nível mínimo de estoque.');
     } finally {
       setSaving(false);
