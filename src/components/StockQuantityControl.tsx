@@ -56,22 +56,11 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
   async function keepCardOpenDuringSync(action: () => Promise<void>) {
     const initialCard = findProductCard(product);
     const shouldStayOpen = initialCard?.open ?? false;
-    const initialTop = initialCard?.getBoundingClientRect().top ?? null;
-    let scrollCorrected = false;
 
     const restoreCard = () => {
       if (!shouldStayOpen) return;
       const card = findProductCard(product);
-      if (!card) return;
-
-      if (!card.open) card.open = true;
-
-      if (!scrollCorrected && initialTop !== null) {
-        const currentTop = card.getBoundingClientRect().top;
-        const difference = currentTop - initialTop;
-        if (Math.abs(difference) > 2) window.scrollBy({ top: difference, behavior: 'auto' });
-        scrollCorrected = true;
-      }
+      if (card && !card.open) card.open = true;
     };
 
     const observer = new MutationObserver(() => {
@@ -110,7 +99,6 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
         await saveProduct({ ...product, quantity, updatedAt: new Date().toISOString() });
         await onUpdated();
       });
-      onMessage(`${product.name}: quantidade atualizada para ${quantity} unidade(s).`);
     } catch (error) {
       console.error(error);
       setDisplayQuantity(previousQuantity);
@@ -133,11 +121,6 @@ export default function StockQuantityControl({ product, onUpdated, onMessage }: 
       });
       setEditingMinimum(false);
       setMinimumDraft(String(lowStockThreshold ?? ''));
-      onMessage(
-        lowStockThreshold
-          ? `${product.name}: alerta de estoque baixo programado para ${lowStockThreshold} unidade(s).`
-          : `${product.name}: alerta de estoque baixo desativado.`,
-      );
     } catch (error) {
       console.error(error);
       onMessage('Não foi possível salvar o nível mínimo de estoque.');
