@@ -49,6 +49,21 @@ const FR2_55_MATT_BLACK: TechnicalSheet = {
   updatedAt: '2026-07-23',
 };
 
+const VARNISH_1500_FR_GLOSS: TechnicalSheet = {
+  manufacturer: 'AkzoNobel Aerospace Coatings',
+  partNumber: '12150700B001L',
+  sapCode: '5787525',
+  color: 'Transparente / Gloss',
+  packageWeight: '1 L',
+  hardener: '1500-FR Hardener',
+  thinner: 'FRSL-T / FRSL Thinner',
+  mixingRatio: 'Por peso: 100 partes de base + 50 partes de endurecedor + 0 a 50 partes de thinner. Por volume: 2 partes de base + 1 parte de endurecedor + 0 a 1 parte de thinner.',
+  dryFilmThickness: '50 µm como referência de cobertura do fabricante',
+  technicalDataSheetUrl: 'https://aerospace.akzonobel.com/en/products/varnish-1500-fr',
+  notes: 'Verniz poliuretano transparente de 3 componentes, alto sólidos e base solvente, desenvolvido para proteger interiores de cabine. Pode ser aplicado sobre FRS40 ou diretamente em plásticos resistentes a solvente. Cobertura oficial de referência: 9 m²/L para 50 µm de filme seco. Especificações qualificadas indicadas pelo fabricante: FACC FMS 5540, LIST LMS QM000094, Pilatus PMS0600-52-02 e Safran Cabin HMS-D1-004. O PN, SAP, volume e Ecode foram conferidos no rótulo da embalagem. Confirmar sempre a revisão vigente da TDS/SDS antes da aplicação.',
+  updatedAt: '2026-07-23',
+};
+
 function normalizedIdentity(product: Product): string {
   return [
     product.name,
@@ -68,6 +83,17 @@ export function getTechnicalSheet(product: Product): TechnicalSheet | undefined 
   }
 
   const identity = normalizedIdentity(product);
+
+  if (
+    product.ecode === '8679400' ||
+    identity.includes('12150700B001L') ||
+    identity.includes('5787525') ||
+    identity.includes('1500-FR GLOSS') ||
+    identity.includes('1500 FR GLOSS') ||
+    identity.includes('VARNISH 1500-FR')
+  ) {
+    return VARNISH_1500_FR_GLOSS;
+  }
 
   if (
     product.ecode === '6570961' ||
