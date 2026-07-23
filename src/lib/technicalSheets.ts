@@ -60,7 +60,7 @@ export function getTechnicalSheet(product: Product): TechnicalSheet | undefined 
   const identity = normalizedIdentity(product);
 
   if (
-    product.ecode === '5791757' ||
+    product.ecode === '6570961' ||
     identity.includes('55747038B005K') ||
     identity.includes('5791757') ||
     identity.includes('FR2-55 MATT') ||
