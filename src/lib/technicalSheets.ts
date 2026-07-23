@@ -23,13 +23,53 @@ const FR2_55_SEMI_GLOSS: TechnicalSheet = {
   updatedAt: '2026-07-20',
 };
 
+const FR2_55_MATT_BLACK: TechnicalSheet = {
+  manufacturer: 'AkzoNobel Aerospace Coatings',
+  partNumber: '55747038B005K',
+  sapCode: '5791757',
+  color: 'Preto FS 37038 / AIC 53.30',
+  packageWeight: '5 kg',
+  hardener: 'FR2-55 Hardener',
+  thinner: 'Água: 15 a 25 partes por peso',
+  mixingRatio: '100 g de FR2-55 Base + 20 g de FR2-55 Hardener + 15 a 25 g de água',
+  dryFilmThickness: '40 µm como referência de cobertura do fabricante',
+  storage: 'Armazenar entre 5 °C e 35 °C. Não congelar. Validade indicada no rótulo: 12 meses.',
+  technicalDataSheetUrl: 'https://aerospace.akzonobel.com/en/products/topcoat-fr2-55',
+  notes: 'Acabamento poliuretano flexível de 3 componentes, à base de água, para interiores aeronáuticos. Versão matte 4–6 GU. Cobertura de referência do fabricante: 9 m²/kg para 40 µm de filme seco. Compatível com FR-M1K, FR-Preprime e primers FR-P1K, FR1-55, FR4-45 ou FRS30. A proporção de mistura, o PN, o SAP, a cor e o armazenamento foram conferidos no rótulo da embalagem. Confirmar sempre a revisão vigente da TDS/SDS antes da aplicação.',
+  updatedAt: '2026-07-23',
+};
+
+function normalizedIdentity(product: Product): string {
+  return [
+    product.name,
+    product.ecode,
+    product.docmat,
+    product.qrRaw,
+    product.notes,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleUpperCase('pt-BR');
+}
+
 export function getTechnicalSheet(product: Product): TechnicalSheet | undefined {
   if (product.technicalSheet && Object.values(product.technicalSheet).some(Boolean)) {
     return product.technicalSheet;
   }
 
-  const normalizedName = product.name.toLocaleUpperCase('pt-BR');
-  if (product.ecode === '7863462' || normalizedName.includes('FR2-55 SEMI-GLOSS')) {
+  const identity = normalizedIdentity(product);
+
+  if (
+    product.ecode === '5791757' ||
+    identity.includes('55747038B005K') ||
+    identity.includes('5791757') ||
+    identity.includes('FR2-55 MATT') ||
+    identity.includes('FR2 55 MATT')
+  ) {
+    return FR2_55_MATT_BLACK;
+  }
+
+  if (product.ecode === '7863462' || identity.includes('FR2-55 SEMI-GLOSS')) {
     return FR2_55_SEMI_GLOSS;
   }
 
