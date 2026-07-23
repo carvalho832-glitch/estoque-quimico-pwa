@@ -1,0 +1,65 @@
+.pdf-responsibles-panel {
+  display: grid;
+  gap: 12px;
+  margin: -4px 0 18px;
+  padding: 14px;
+  border: 1px solid #d6e6e2;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(247, 252, 251, 0.98), rgba(255, 255, 255, 0.98));
+}
+
+.pdf-responsibles-heading strong,
+.pdf-responsibles-heading small {
+  display: block;
+}
+
+.pdf-responsibles-heading strong {
+  color: #174c45;
+  font-size: 0.9rem;
+}
+
+.pdf-responsibles-heading small {
+  margin-top: 3px;
+  color: #6b817d;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.pdf-responsibles-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pdf-responsible-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pdf-responsible-field span {
+  color: #3b625c;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.pdf-responsible-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #ccddd8;
+  border-radius: 12px;
+  color: #183f3a;
+  background: #fff;
+  outline: none;
+}
+
+.pdf-responsible-field input:focus {
+  border-color: #129084;
+  box-shadow: 0 0 0 3px rgba(18, 144, 132, 0.13);
+}
+
+@media (max-width: 640px) {
+  .pdf-responsibles-fields {
+    grid-template-columns: 1fr;
+  }
+}
