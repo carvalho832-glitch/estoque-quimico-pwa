@@ -71,8 +71,8 @@ const VARNISH_1500_FR_GLOSS: TechnicalSheet = {
   applicationTemperature: '15 °C a 35 °C',
   maxHumidity: '30% a 75% de umidade relativa',
   storage: 'Armazenar entre 5 °C e 35 °C, na embalagem original cheia e lacrada. Validade: 48 meses para base gloss e thinner; 12 meses para hardener.',
-  technicalDataSheetUrl: 'https://carvalho832-glitch.github.io/estoque-quimico-pwa/documentos/fichas-tecnicas/8679400/varnish-1500-fr-tds-2022-04.html',
-  notes: 'Verniz poliuretano transparente de 3 componentes, alto sólidos e base solvente, desenvolvido para proteger interiores de cabine. Aplicar sobre FRS40 levemente lixado com abrasivo P400. Cobertura teórica: 9 m²/L para 50 µm de filme seco. Os tempos de secagem foram determinados em corpos de prova com espessura inferior a 2 mm e filme seco de 50 µm. Cópia estável para consulta no QuimStock baseada na ficha oficial AkzoNobel/Mapaero TDS nº 10, edição 04/2022.',
+  technicalDataSheetUrl: 'https://carvalho832-glitch.github.io/estoque-quimico-pwa/documentos/fichas-tecnicas/8679400/varnish-1500-fr-tds-2022-04.pdf',
+  notes: 'Verniz poliuretano transparente de 3 componentes, alto sólidos e base solvente, desenvolvido para proteger interiores de cabine. Aplicar sobre FRS40 levemente lixado com abrasivo P400. Cobertura teórica: 9 m²/L para 50 µm de filme seco. Os tempos de secagem foram determinados em corpos de prova com espessura inferior a 2 mm e filme seco de 50 µm. PDF armazenado no próprio repositório para consulta estável no QuimStock, baseado na ficha oficial AkzoNobel/Mapaero TDS nº 10, edição 04/2022.',
   updatedAt: '2026-07-24',
 };
 
