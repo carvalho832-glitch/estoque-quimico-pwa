@@ -76,6 +76,24 @@ const VARNISH_1500_FR_GLOSS: TechnicalSheet = {
   updatedAt: '2026-07-24',
 };
 
+const EPOCAST_50_A1_9816: TechnicalSheet = {
+  manufacturer: 'Huntsman Advanced Materials',
+  partNumber: '50-A1/Q',
+  sapCode: '4165608',
+  color: 'Resina epóxi / sistema de laminação',
+  packageWeight: 'Resina 0,908 kg + Hardener 9816 conforme embalagem',
+  hardener: 'HARDENER 9816 US',
+  mixingRatio: 'Por peso: 100 partes de EPOCAST 50-A1 Resin + 14 partes de HARDENER 9816 US',
+  potLife: 'Gel time típico: 65 minutos para 100 g a 25 °C',
+  handling23C: 'Manuseio e usinagem após aproximadamente 8 a 16 horas em temperatura ambiente',
+  fullCure23C: 'Ciclo típico: 5 dias a 25 °C',
+  applicationTemperature: 'Os componentes devem estar acima de 18 °C durante a mistura',
+  storage: 'Armazenar em local seco, na embalagem original lacrada, entre 2 °C e 40 °C. Validade típica: 12 meses a partir da fabricação.',
+  technicalDataSheetUrl: 'https://products.huntsman.com/products/epocast-50-a1-9816-fem21jkk',
+  notes: 'Sistema epóxi de laminação sem carga e sem solvente, retardante de chama, indicado para fabricação e reparo de estruturas compostas e filament winding. Qualificado segundo BMS 8-201 Type III Rev. F. A etiqueta fotografada indica também EMBRAER MEP 22-011 Rev. F. A página oficial da Huntsman exige login para baixar o PDF completo; por isso o botão abre a ficha oficial do produto com os dados técnicos publicados pelo fabricante.',
+  updatedAt: '2026-07-24',
+};
+
 function normalizedIdentity(product: Product): string {
   return [
     product.name,
@@ -95,6 +113,17 @@ export function getTechnicalSheet(product: Product): TechnicalSheet | undefined 
   }
 
   const identity = normalizedIdentity(product);
+
+  if (
+    identity.includes('EPOCAST 50-A1') ||
+    identity.includes('EPOCAST® 50-A1') ||
+    identity.includes('50-A1/Q') ||
+    identity.includes('HARDENER 9816') ||
+    identity.includes('4165608') ||
+    identity.includes('1915708')
+  ) {
+    return EPOCAST_50_A1_9816;
+  }
 
   if (
     product.ecode === '8679400' ||
