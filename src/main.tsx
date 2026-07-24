@@ -6,6 +6,7 @@ import Dashboard from './Dashboard';
 import './styles.css';
 import './dashboard-usage.css';
 import './attention-alert.css';
+import './product-card-modal.css';
 import './attention-alert';
 import './in-use-alert';
 import './pdf-responsibles';
