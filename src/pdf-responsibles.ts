@@ -22,7 +22,100 @@ function createField(labelText: string, value: string, placeholder: string): { w
   return { wrapper, input };
 }
 
-function installPdfResponsibleFields(): void {
+function openPdfDialog(): void {
+  if (document.querySelector('.pdf-dialog-backdrop')) return;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'pdf-dialog-backdrop';
+  backdrop.setAttribute('role', 'presentation');
+
+  const dialog = document.createElement('section');
+  dialog.className = 'pdf-dialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  dialog.setAttribute('aria-labelledby', 'pdf-dialog-title');
+
+  const header = document.createElement('div');
+  header.className = 'pdf-dialog-header';
+  const heading = document.createElement('div');
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'eyebrow';
+  eyebrow.textContent = 'RELATÓRIO DE ESTOQUE';
+  const title = document.createElement('h2');
+  title.id = 'pdf-dialog-title';
+  title.textContent = 'Identificar responsáveis';
+  const hint = document.createElement('p');
+  hint.textContent = 'Informe quem atualizou e quem conferiu a lista antes de gerar o arquivo.';
+  heading.append(eyebrow, title, hint);
+
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'pdf-dialog-close';
+  close.textContent = '×';
+  close.setAttribute('aria-label', 'Fechar');
+  header.append(heading, close);
+
+  const fields = document.createElement('div');
+  fields.className = 'pdf-responsibles-fields';
+  const updated = createField('Atualizado por', localStorage.getItem(UPDATED_BY_KEY) ?? '', 'Digite o nome de quem atualizou');
+  const checked = createField('Checado por', localStorage.getItem(CHECKED_BY_KEY) ?? '', 'Digite o nome de quem conferiu');
+  fields.append(updated.wrapper, checked.wrapper);
+
+  const actions = document.createElement('div');
+  actions.className = 'pdf-dialog-actions';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'ghost-button';
+  cancel.textContent = 'Cancelar';
+  const generate = document.createElement('button');
+  generate.type = 'button';
+  generate.className = 'primary-button';
+  generate.textContent = 'Gerar PDF';
+  actions.append(cancel, generate);
+
+  dialog.append(header, fields, actions);
+  backdrop.append(dialog);
+  document.body.append(backdrop);
+  document.body.classList.add('modal-open');
+
+  const dismiss = () => {
+    backdrop.remove();
+    document.body.classList.remove('modal-open');
+  };
+
+  close.addEventListener('click', dismiss);
+  cancel.addEventListener('click', dismiss);
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) dismiss();
+  });
+
+  generate.addEventListener('click', async () => {
+    const updatedBy = updated.input.value.trim();
+    const checkedBy = checked.input.value.trim();
+    if (!updatedBy || !checkedBy) {
+      dialog.classList.add('pdf-dialog-invalid');
+      (!updatedBy ? updated.input : checked.input).focus();
+      return;
+    }
+
+    localStorage.setItem(UPDATED_BY_KEY, updatedBy);
+    localStorage.setItem(CHECKED_BY_KEY, checkedBy);
+    generate.disabled = true;
+    generate.textContent = 'Gerando...';
+    try {
+      const products = await listProducts();
+      exportProductsToPdf(products, { updatedBy, checkedBy });
+      dismiss();
+    } finally {
+      generate.disabled = false;
+      generate.textContent = 'Gerar PDF';
+    }
+  });
+
+  window.setTimeout(() => updated.input.focus(), 50);
+}
+
+function installPdfDialog(): void {
   const inventoryTitle = document.querySelector<HTMLElement>('.inventory-title');
   if (!inventoryTitle || inventoryTitle.dataset.pdfResponsiblesReady === 'true') return;
 
@@ -31,60 +124,16 @@ function installPdfResponsibleFields(): void {
   if (!generateButton) return;
 
   inventoryTitle.dataset.pdfResponsiblesReady = 'true';
-
-  const panel = document.createElement('div');
-  panel.className = 'pdf-responsibles-panel';
-
-  const heading = document.createElement('div');
-  heading.className = 'pdf-responsibles-heading';
-  const title = document.createElement('strong');
-  title.textContent = 'Responsáveis pelo relatório';
-  const hint = document.createElement('small');
-  hint.textContent = 'Os nomes ficam salvos neste aparelho e entram automaticamente no PDF.';
-  heading.append(title, hint);
-
-  const fields = document.createElement('div');
-  fields.className = 'pdf-responsibles-fields';
-
-  const updated = createField(
-    'Atualizado por',
-    localStorage.getItem(UPDATED_BY_KEY) ?? '',
-    'Digite o nome de quem atualizou',
-  );
-  const checked = createField(
-    'Checado por',
-    localStorage.getItem(CHECKED_BY_KEY) ?? '',
-    'Digite o nome de quem conferiu',
-  );
-
-  fields.append(updated.wrapper, checked.wrapper);
-  panel.append(heading, fields);
-  inventoryTitle.insertAdjacentElement('afterend', panel);
-
-  const saveValues = () => {
-    localStorage.setItem(UPDATED_BY_KEY, updated.input.value.trim());
-    localStorage.setItem(CHECKED_BY_KEY, checked.input.value.trim());
-  };
-
-  updated.input.addEventListener('input', saveValues);
-  checked.input.addEventListener('input', saveValues);
-
-  generateButton.addEventListener('click', async (event) => {
+  generateButton.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
-
-    saveValues();
-    const products = await listProducts();
-    exportProductsToPdf(products, {
-      updatedBy: updated.input.value.trim(),
-      checkedBy: checked.input.value.trim(),
-    });
+    openPdfDialog();
   }, true);
 }
 
 function observePdfArea(): void {
-  installPdfResponsibleFields();
-  const observer = new MutationObserver(() => installPdfResponsibleFields());
+  installPdfDialog();
+  const observer = new MutationObserver(() => installPdfDialog());
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
