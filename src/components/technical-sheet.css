@@ -62,7 +62,7 @@ button.technical-sheet-card:focus-visible {
 .technical-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 4000;
   display: grid;
   place-items: center;
   padding: 18px;
