@@ -10,6 +10,7 @@ import './product-card-modal.css';
 import './attention-alert';
 import './in-use-alert';
 import './pdf-responsibles';
+import './edit-product-modal-fix';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
