@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quimstock-v31';
+const CACHE_NAME = 'quimstock-v32';
 const APP_SHELL = ['./', './index.html', './cloud.html', './manifest.webmanifest', './icon.svg', './facc-logo.svg'];
 
 self.addEventListener('install', (event) => {
@@ -8,9 +8,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
-    ),
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))),
   );
   self.clients.claim();
 });
@@ -18,9 +16,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  const isNavigation = event.request.mode === 'navigate';
+  const url = new URL(event.request.url);
+  const sameOrigin = url.origin === self.location.origin;
+  const isAppAsset = sameOrigin && (event.request.mode === 'navigate' || /\.(?:js|css|html)$/.test(url.pathname));
 
-  if (isNavigation) {
+  if (isAppAsset) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store' })
         .then((response) => {
@@ -30,9 +30,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(async () => {
-          return (await caches.match(event.request)) || (await caches.match('./index.html'));
-        }),
+        .catch(async () => (await caches.match(event.request)) || (await caches.match('./index.html'))),
     );
     return;
   }
@@ -40,7 +38,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+        if (response.ok && sameOrigin) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         }
