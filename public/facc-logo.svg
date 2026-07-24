@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 540" role="img" aria-labelledby="title desc">
+  <title id="title">FACC</title>
+  <desc id="desc">Identidade visual FACC em preto, branco e azul</desc>
+  <rect width="620" height="540" rx="42" fill="#ffffff"/>
+  <path d="M18 18h420c34 0 62 28 62 62v110L185 500c-34 33-91 9-91-39V80c0-34 28-62 62-62z" fill="#fff" stroke="#101214" stroke-width="8"/>
+  <path d="M82 498c42-4 72-18 104-49l272-267c25-25 61-37 95-32l48 7-153 341H82z" fill="#355c77" stroke="#101214" stroke-width="10"/>
+  <text x="60" y="154" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="800" letter-spacing="-8" fill="#111311">FACC</text>
+</svg>
