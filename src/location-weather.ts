@@ -10,7 +10,7 @@ type WeatherPayload = {
 };
 
 const STORAGE_KEY = 'quimstock:weather-location';
-const REFRESH_INTERVAL = 10 * 60 * 1000;
+const REFRESH_INTERVAL = 30 * 60 * 1000;
 
 function createWidget(): HTMLElement {
   const widget = document.createElement('section');
