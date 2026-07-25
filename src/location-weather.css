@@ -1,136 +1,153 @@
 .location-weather {
-  position: absolute;
-  right: 24px;
-  top: 22px;
-  z-index: 3;
   display: grid;
-  grid-template-columns: auto auto auto 38px;
+  grid-template-columns: minmax(110px, 1.1fr) minmax(92px, .85fr) minmax(92px, .85fr) minmax(150px, 1.35fr) 40px;
   align-items: center;
-  gap: 10px;
-  max-width: calc(100% - 390px);
-  padding: 11px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  gap: 12px;
+  width: 100%;
+  margin: -2px 0 18px;
+  padding: 11px 14px;
+  border: 1px solid #d5e1e8;
+  border-left: 5px solid #7890a0;
   border-radius: 18px;
-  color: #fff;
-  background: rgba(7, 29, 44, 0.42);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  color: #17384d;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 28px rgba(22, 54, 75, 0.08);
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
 }
 
-.location-weather-clock {
-  min-width: 112px;
-  padding-right: 10px;
-  border-right: 1px solid rgba(255, 255, 255, 0.18);
+.location-weather-clock,
+.location-weather-reading,
+.location-weather-condition {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
 }
 
-.location-weather-label,
+.location-weather-clock > span,
+.location-weather-reading > span {
+  font-size: 1.15rem;
+  flex: 0 0 auto;
+}
+
 .location-weather-clock strong,
 .location-weather-clock small,
 .location-weather-reading strong,
-.location-weather-reading small {
+.location-weather-reading small,
+.location-weather-condition strong,
+.location-weather-condition small {
   display: block;
 }
 
-.location-weather-label {
-  color: #b9d1df;
-  font-size: 0.56rem;
-  font-weight: 850;
-  letter-spacing: 0.12em;
-}
-
-.location-weather-time {
-  margin-top: 2px;
-  font-size: 1.18rem;
-  letter-spacing: -0.02em;
+.location-weather-time,
+.location-weather-reading strong {
+  color: #15374f;
+  font-size: 1rem;
+  line-height: 1.1;
 }
 
 .location-weather-date,
-.location-weather-reading small {
-  margin-top: 1px;
-  color: #d7e5ed;
-  font-size: 0.62rem;
+.location-weather-reading small,
+.location-weather-condition small {
+  margin-top: 2px;
+  color: #6b7d89;
+  font-size: 0.65rem;
+  line-height: 1.2;
 }
 
-.location-weather-reading {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 92px;
+.location-weather-condition {
+  padding-left: 12px;
+  border-left: 1px solid #dce5eb;
 }
 
-.location-weather-reading > span {
-  font-size: 1.2rem;
+.location-weather-condition strong {
+  color: #294b60;
+  font-size: 0.78rem;
+  line-height: 1.2;
 }
 
-.location-weather-reading strong {
-  font-size: 1rem;
+.location-weather-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #7890a0;
+  box-shadow: 0 0 0 5px rgba(120, 144, 160, 0.14);
 }
 
 .location-weather-refresh {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid rgba(255,255,255,0.2);
+  width: 38px;
+  height: 38px;
+  border: 1px solid #cfdae1;
   border-radius: 50%;
-  color: #fff;
-  background: rgba(255,255,255,0.1);
-  font-size: 1.15rem;
+  color: #234e69;
+  background: #eef4f7;
+  font-size: 1.1rem;
 }
 
-.location-weather-refresh:disabled {
-  opacity: 0.6;
+.location-weather-refresh:disabled { opacity: 0.58; }
+.location-weather-loading .location-weather-refresh { animation: location-weather-spin .9s linear infinite; }
+
+.location-weather-ok {
+  border-left-color: #19915f;
+  background: linear-gradient(90deg, #f2fcf7, #ffffff 34%);
 }
+.location-weather-ok .location-weather-dot { background: #19915f; box-shadow: 0 0 0 5px rgba(25,145,95,.13); }
 
-.location-weather-loading .location-weather-refresh {
-  animation: location-weather-spin 0.9s linear infinite;
+.location-weather-warning {
+  border-left-color: #d08a1d;
+  background: linear-gradient(90deg, #fff9ed, #ffffff 34%);
 }
+.location-weather-warning .location-weather-dot { background: #d08a1d; box-shadow: 0 0 0 5px rgba(208,138,29,.14); }
 
-.location-weather-status {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: #c9dce7;
-  font-size: 0.58rem;
-  line-height: 1.25;
+.location-weather-danger {
+  border-left-color: #c43b31;
+  background: linear-gradient(90deg, #fff3f1, #ffffff 34%);
 }
+.location-weather-danger .location-weather-dot { background: #c43b31; box-shadow: 0 0 0 5px rgba(196,59,49,.13); }
 
-@keyframes location-weather-spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes location-weather-spin { to { transform: rotate(360deg); } }
 
-@media (max-width: 900px) {
-  .app-header {
-    padding-top: 154px !important;
-  }
-
+@media (max-width: 760px) {
   .location-weather {
-    left: 24px;
-    right: 24px;
-    top: 136px;
-    max-width: none;
-    grid-template-columns: 1.15fr 1fr 1fr 38px;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) 38px;
+    gap: 9px;
+    padding: 10px 11px;
+  }
+
+  .location-weather-condition {
+    grid-column: 1 / 4;
+    grid-row: 2;
+    padding: 8px 0 0;
+    border-left: 0;
+    border-top: 1px solid #dce5eb;
+  }
+
+  .location-weather-refresh {
+    grid-column: 4;
+    grid-row: 1 / 3;
+    align-self: center;
   }
 }
 
-@media (max-width: 560px) {
-  .app-header {
-    padding-top: 222px !important;
-  }
-
+@media (max-width: 430px) {
   .location-weather {
-    top: 136px;
-    grid-template-columns: 1fr 1fr 38px;
+    grid-template-columns: 1fr 1fr 1fr 36px;
+    gap: 7px;
+    border-radius: 16px;
   }
 
-  .location-weather-clock {
-    grid-column: 1 / 3;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255,255,255,0.18);
-    padding: 0 0 8px;
-  }
-
-  .location-weather-status {
-    font-size: 0.56rem;
-  }
+  .location-weather-clock,
+  .location-weather-reading { gap: 5px; }
+  .location-weather-clock > span,
+  .location-weather-reading > span { font-size: .95rem; }
+  .location-weather-time,
+  .location-weather-reading strong { font-size: .9rem; }
+  .location-weather-date,
+  .location-weather-reading small,
+  .location-weather-condition small { font-size: .58rem; }
+  .location-weather-condition strong { font-size: .7rem; }
+  .location-weather-refresh { width: 34px; height: 34px; }
 }
