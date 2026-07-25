@@ -9,6 +9,19 @@ type WeatherPayload = {
   timezone?: string;
 };
 
+type SavedLocation = {
+  latitude: number;
+  longitude: number;
+  label?: string;
+};
+
+type ReverseGeocodePayload = {
+  city?: string;
+  locality?: string;
+  principalSubdivision?: string;
+  principalSubdivisionCode?: string;
+};
+
 const STORAGE_KEY = 'quimstock:weather-location';
 const REFRESH_INTERVAL = 30 * 60 * 1000;
 
@@ -31,14 +44,18 @@ function createWidget(): HTMLElement {
     </div>
     <div class="location-weather-condition">
       <span class="location-weather-dot"></span>
-      <div><strong class="location-weather-condition-label">Aguardando dados</strong><small class="location-weather-status">Localização do aparelho</small></div>
+      <div>
+        <strong class="location-weather-condition-label">Aguardando dados</strong>
+        <small class="location-weather-place">📍 Localização do aparelho</small>
+        <small class="location-weather-status">Aguardando atualização</small>
+      </div>
     </div>
     <button type="button" class="location-weather-refresh" aria-label="Atualizar clima pela localização">↻</button>
   `;
   return widget;
 }
 
-function readSavedLocation(): { latitude: number; longitude: number } | null {
+function readSavedLocation(): SavedLocation | null {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (typeof saved?.latitude === 'number' && typeof saved?.longitude === 'number') return saved;
@@ -48,10 +65,11 @@ function readSavedLocation(): { latitude: number; longitude: number } | null {
   return null;
 }
 
-function saveLocation(latitude: number, longitude: number): void {
+function saveLocation(location: SavedLocation): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    latitude: Number(latitude.toFixed(3)),
-    longitude: Number(longitude.toFixed(3)),
+    latitude: Number(location.latitude.toFixed(3)),
+    longitude: Number(location.longitude.toFixed(3)),
+    label: location.label || '',
   }));
 }
 
@@ -65,6 +83,21 @@ async function fetchWeather(latitude: number, longitude: number): Promise<Weathe
   const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { cache: 'no-store' });
   if (!response.ok) throw new Error('Falha ao consultar o clima.');
   return response.json() as Promise<WeatherPayload>;
+}
+
+async function fetchPlace(latitude: number, longitude: number): Promise<string> {
+  const params = new URLSearchParams({
+    latitude: String(latitude),
+    longitude: String(longitude),
+    localityLanguage: 'pt',
+  });
+  const response = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?${params.toString()}`, { cache: 'no-store' });
+  if (!response.ok) throw new Error('Falha ao identificar a cidade.');
+
+  const data = await response.json() as ReverseGeocodePayload;
+  const city = data.city || data.locality || 'Localização atual';
+  const state = data.principalSubdivisionCode?.split('-').pop() || data.principalSubdivision || '';
+  return state ? `${city}/${state}` : city;
 }
 
 function requestLocation(): Promise<GeolocationPosition> {
@@ -112,11 +145,13 @@ function installLocationWeather(): void {
   const date = widget.querySelector<HTMLElement>('.location-weather-date')!;
   const temp = widget.querySelector<HTMLElement>('.location-weather-temp')!;
   const humidity = widget.querySelector<HTMLElement>('.location-weather-humidity')!;
+  const place = widget.querySelector<HTMLElement>('.location-weather-place')!;
   const status = widget.querySelector<HTMLElement>('.location-weather-status')!;
   const refresh = widget.querySelector<HTMLButtonElement>('.location-weather-refresh')!;
 
   let timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   let currentLocation = readSavedLocation();
+  if (currentLocation?.label) place.textContent = `📍 ${currentLocation.label}`;
 
   const updateClock = () => {
     const now = new Date();
@@ -145,11 +180,20 @@ function installLocationWeather(): void {
         currentLocation = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          label: currentLocation?.label,
         };
-        saveLocation(currentLocation.latitude, currentLocation.longitude);
       }
 
-      const data = await fetchWeather(currentLocation.latitude, currentLocation.longitude);
+      const [data, locationLabel] = await Promise.all([
+        fetchWeather(currentLocation.latitude, currentLocation.longitude),
+        currentLocation.label
+          ? Promise.resolve(currentLocation.label)
+          : fetchPlace(currentLocation.latitude, currentLocation.longitude).catch(() => 'Localização atual'),
+      ]);
+
+      currentLocation.label = locationLabel;
+      saveLocation(currentLocation);
+      place.textContent = `📍 ${locationLabel}`;
       timezone = data.timezone || timezone;
       const currentTemperature = Math.round(data.current?.temperature_2m ?? 0);
       const currentHumidity = Math.round(data.current?.relative_humidity_2m ?? 0);
