@@ -11,6 +11,7 @@ import './attention-alert';
 import './in-use-alert';
 import './pdf-responsibles';
 import './edit-product-modal-fix';
+import './location-weather';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
