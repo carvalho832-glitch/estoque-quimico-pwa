@@ -79,6 +79,10 @@ function requestLocation(): Promise<GeolocationPosition> {
   });
 }
 
+function isPermissionDenied(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && Number((error as { code?: number }).code) === 1;
+}
+
 function installLocationWeather(): void {
   const header = document.querySelector<HTMLElement>('.app-header');
   if (!header || header.querySelector('.location-weather')) return;
@@ -136,7 +140,7 @@ function installLocationWeather(): void {
       widget.classList.add('location-weather-ready');
       updateClock();
     } catch (error) {
-      status.textContent = error instanceof GeolocationPositionError && error.code === error.PERMISSION_DENIED
+      status.textContent = isPermissionDenied(error)
         ? 'Permita a localização nas configurações do navegador.'
         : error instanceof Error ? error.message : 'Não foi possível atualizar o clima.';
     } finally {
