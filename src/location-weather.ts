@@ -14,24 +14,26 @@ const REFRESH_INTERVAL = 10 * 60 * 1000;
 
 function createWidget(): HTMLElement {
   const widget = document.createElement('section');
-  widget.className = 'location-weather';
+  widget.className = 'location-weather location-weather-neutral';
   widget.setAttribute('aria-label', 'Relógio, temperatura e umidade externas');
   widget.innerHTML = `
     <div class="location-weather-clock">
-      <span class="location-weather-label">HORÁRIO LOCAL</span>
-      <strong class="location-weather-time">--:--</strong>
-      <small class="location-weather-date">Aguardando localização</small>
+      <span>🕒</span>
+      <div><strong class="location-weather-time">--:--</strong><small class="location-weather-date">Aguardando</small></div>
     </div>
     <div class="location-weather-reading">
       <span>🌡️</span>
-      <div><strong class="location-weather-temp">--°C</strong><small>Temperatura externa</small></div>
+      <div><strong class="location-weather-temp">--°C</strong><small>Temperatura</small></div>
     </div>
     <div class="location-weather-reading">
       <span>💧</span>
-      <div><strong class="location-weather-humidity">--%</strong><small>Umidade externa</small></div>
+      <div><strong class="location-weather-humidity">--%</strong><small>Umidade</small></div>
+    </div>
+    <div class="location-weather-condition">
+      <span class="location-weather-dot"></span>
+      <div><strong class="location-weather-condition-label">Aguardando dados</strong><small class="location-weather-status">Localização do aparelho</small></div>
     </div>
     <button type="button" class="location-weather-refresh" aria-label="Atualizar clima pela localização">↻</button>
-    <p class="location-weather-status">Toque em atualizar e permita o acesso à localização.</p>
   `;
   return widget;
 }
@@ -83,12 +85,28 @@ function isPermissionDenied(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && Number((error as { code?: number }).code) === 1;
 }
 
+function setCondition(widget: HTMLElement, temperature: number, humidity: number): void {
+  widget.classList.remove('location-weather-ok', 'location-weather-warning', 'location-weather-danger', 'location-weather-neutral');
+  const label = widget.querySelector<HTMLElement>('.location-weather-condition-label')!;
+
+  if (temperature >= 18 && temperature <= 26 && humidity >= 40 && humidity <= 70) {
+    widget.classList.add('location-weather-ok');
+    label.textContent = 'Condição externa OK';
+  } else if (temperature >= 15 && temperature <= 30 && humidity >= 30 && humidity <= 80) {
+    widget.classList.add('location-weather-warning');
+    label.textContent = 'Condição externa: atenção';
+  } else {
+    widget.classList.add('location-weather-danger');
+    label.textContent = 'Condição externa fora da faixa';
+  }
+}
+
 function installLocationWeather(): void {
   const header = document.querySelector<HTMLElement>('.app-header');
-  if (!header || header.querySelector('.location-weather')) return;
+  if (!header || document.querySelector('.location-weather')) return;
 
   const widget = createWidget();
-  header.append(widget);
+  header.insertAdjacentElement('afterend', widget);
 
   const time = widget.querySelector<HTMLElement>('.location-weather-time')!;
   const date = widget.querySelector<HTMLElement>('.location-weather-date')!;
@@ -105,7 +123,6 @@ function installLocationWeather(): void {
     time.textContent = new Intl.DateTimeFormat('pt-BR', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: false,
       timeZone: timezone,
     }).format(now);
@@ -120,7 +137,7 @@ function installLocationWeather(): void {
   const loadWeather = async (forceLocation = false) => {
     refresh.disabled = true;
     widget.classList.add('location-weather-loading');
-    status.textContent = forceLocation ? 'Obtendo localização…' : 'Atualizando dados externos…';
+    status.textContent = forceLocation ? 'Obtendo localização…' : 'Atualizando…';
 
     try {
       if (!currentLocation || forceLocation) {
@@ -134,15 +151,20 @@ function installLocationWeather(): void {
 
       const data = await fetchWeather(currentLocation.latitude, currentLocation.longitude);
       timezone = data.timezone || timezone;
-      temp.textContent = `${Math.round(data.current?.temperature_2m ?? 0)}°C`;
-      humidity.textContent = `${Math.round(data.current?.relative_humidity_2m ?? 0)}%`;
-      status.textContent = 'Dados meteorológicos externos pela localização do aparelho.';
-      widget.classList.add('location-weather-ready');
+      const currentTemperature = Math.round(data.current?.temperature_2m ?? 0);
+      const currentHumidity = Math.round(data.current?.relative_humidity_2m ?? 0);
+      temp.textContent = `${currentTemperature}°C`;
+      humidity.textContent = `${currentHumidity}%`;
+      status.textContent = `Atualizado às ${new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: timezone }).format(new Date())}`;
+      setCondition(widget, currentTemperature, currentHumidity);
       updateClock();
     } catch (error) {
+      widget.classList.remove('location-weather-ok', 'location-weather-warning', 'location-weather-danger');
+      widget.classList.add('location-weather-neutral');
+      widget.querySelector<HTMLElement>('.location-weather-condition-label')!.textContent = 'Dados indisponíveis';
       status.textContent = isPermissionDenied(error)
-        ? 'Permita a localização nas configurações do navegador.'
-        : error instanceof Error ? error.message : 'Não foi possível atualizar o clima.';
+        ? 'Permita a localização no navegador'
+        : error instanceof Error ? error.message : 'Não foi possível atualizar';
     } finally {
       refresh.disabled = false;
       widget.classList.remove('location-weather-loading');
