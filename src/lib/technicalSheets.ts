@@ -76,6 +76,33 @@ const VARNISH_1500_FR_GLOSS: TechnicalSheet = {
   updatedAt: '2026-07-24',
 };
 
+const FRS_30_BASE_WHITE: TechnicalSheet = {
+  manufacturer: 'AkzoNobel Aerospace Coatings / Mapaero',
+  partNumber: '21030000B005K',
+  sapCode: '5789417',
+  color: 'Branco / acabamento fosco abaixo de 10 GU',
+  packageWeight: '5 kg',
+  hardener: 'FRS Hardener',
+  thinner: 'FRSL Thinner',
+  mixingRatio: 'Aplicação por pistola, por peso: 100 partes de base + 5 partes de hardener + 10 a 30 partes de thinner. Por volume: 15 volumes de base + 1 de hardener + 2 a 5 de thinner.',
+  potLife: 'Pistola: 6 horas com diluição de 20%. Pincel: 1 hora com diluição de 5%.',
+  coats: 'Pistola: aproximadamente 2 demãos cruzadas para atingir 80 µm de filme seco. Pincel: 1 demão.',
+  flashOff: 'Para maior espessura, deixar a primeira demão secar cerca de 15 minutos antes da segunda.',
+  wetFilmThickness: '50 a 200 µm',
+  dryFilmThickness: '20 a 100 µm',
+  dustFree23C: '10 minutos',
+  handling23C: 'Seco para lixamento em 4 horas',
+  fullCure23C: '7 dias',
+  handling60C: 'Seco para lixamento em 1 hora',
+  fullCure60C: '12 horas',
+  applicationTemperature: '15 °C a 35 °C',
+  maxHumidity: '20% a 80% de umidade relativa',
+  storage: '24 meses para base e hardener; 48 meses para thinner, armazenados entre 5 °C e 35 °C em embalagem original cheia e lacrada.',
+  technicalDataSheetUrl: 'https://msp.images.akzonobel.com/prd/dh/glbars/documents/surfacer_frs30_tds.pdf',
+  notes: 'Surfacer poliuretano de 3 componentes, base solvente e retardante à chama, destinado a corrigir poros e pequenos defeitos em substratos compósitos e termoplásticos. Tempo de indução: nenhum. Cura adicional informada na TDS: seco para lixamento em 30 minutos e cura completa em 8 horas a 80 °C. Dados baseados na TDS nº 13, edição 02/2022. Confirmar sempre a revisão vigente e os requisitos internos de qualidade antes da aplicação e da liberação da peça.',
+  updatedAt: '2026-07-26',
+};
+
 const EPOCAST_50_A1_9816: TechnicalSheet = {
   manufacturer: 'Huntsman Advanced Materials',
   partNumber: '50-A1/Q',
@@ -113,6 +140,17 @@ export function getTechnicalSheet(product: Product): TechnicalSheet | undefined 
   }
 
   const identity = normalizedIdentity(product);
+
+  if (
+    product.ecode === '8679511' ||
+    identity.includes('21030000B005K') ||
+    identity.includes('5789417') ||
+    identity.includes('FRS-30 BASE WHITE') ||
+    identity.includes('FRS30 BASE WHITE') ||
+    identity.includes('SURFACER FRS30')
+  ) {
+    return FRS_30_BASE_WHITE;
+  }
 
   if (
     identity.includes('EPOCAST 50-A1') ||
