@@ -1,0 +1,234 @@
+.inventory-scanner-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(4, 17, 26, 0.92);
+  backdrop-filter: blur(9px);
+}
+
+.inventory-scanner-dialog {
+  width: min(540px, 100%);
+  max-height: calc(100vh - 28px);
+  overflow: auto;
+  border-radius: 25px;
+  padding: 17px;
+  background: #f7f9fb;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+.inventory-scanner-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 13px;
+}
+
+.inventory-scanner-header h2 {
+  margin: 4px 0 5px;
+  color: #193548;
+  font-size: 1.35rem;
+}
+
+.inventory-scanner-header p {
+  margin: 0;
+  color: #647784;
+  font-size: 0.86rem;
+}
+
+.inventory-scanner-close {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  color: #28485c;
+  background: #e4edf2;
+  font-weight: 900;
+}
+
+.inventory-scanner-view {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+  border-radius: 20px;
+  background: #07131a;
+}
+
+.inventory-scanner-view video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.inventory-scanner-mask {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(rgba(0,0,0,0.38), rgba(0,0,0,0.08), rgba(0,0,0,0.38));
+  pointer-events: none;
+}
+
+.inventory-scanner-frame {
+  position: relative;
+  width: min(72vw, 300px);
+  aspect-ratio: 1;
+  border: 3px solid #8ed8ff;
+  border-radius: 22px;
+  box-shadow: 0 0 0 999px rgba(0,0,0,0.22), 0 0 32px rgba(91,190,243,0.34);
+}
+
+.inventory-scanner-frame::before {
+  content: '';
+  position: absolute;
+  inset: 13px;
+  border: 1px dashed rgba(255,255,255,0.56);
+  border-radius: 13px;
+}
+
+.inventory-scanner-line {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 12%;
+  height: 3px;
+  border-radius: 999px;
+  background: #8ed8ff;
+  box-shadow: 0 0 12px #8ed8ff;
+  animation: inventory-scan-line 2s ease-in-out infinite;
+}
+
+.inventory-scanner-status {
+  margin: 12px 0 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  text-align: center;
+  color: #214b64;
+  background: #e7f3f9;
+  font-weight: 780;
+}
+
+.inventory-scanner-error {
+  color: #8a2c21;
+  background: #ffebe8;
+}
+
+.inventory-scanner-help {
+  margin: 10px 0 0;
+  color: #657884;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.inventory-scanner-finish {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 12px;
+  padding: 13px 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #173d57, #315f7b);
+  font-weight: 820;
+}
+
+.inventory-reader-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 13px 14px;
+  border: 1px solid #d6e0e6;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.inventory-reader-panel strong,
+.inventory-reader-panel span {
+  display: block;
+}
+
+.inventory-reader-panel strong {
+  color: #29485c;
+}
+
+.inventory-reader-panel span {
+  margin-top: 3px;
+  color: #6a7b86;
+  font-size: 0.84rem;
+}
+
+.inventory-open-scanner {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #173d57, #315f7b);
+  font-weight: 810;
+}
+
+.inventory-count-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.inventory-count-control button {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border: 0;
+  border-radius: 9px;
+  color: #244b62;
+  background: #e8f0f5;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.inventory-count-control strong {
+  min-width: 2ch;
+  text-align: center;
+  color: #173d57;
+  font-size: 1rem;
+}
+
+@keyframes inventory-scan-line {
+  0%, 100% { top: 12%; }
+  50% { top: 86%; }
+}
+
+@media (max-width: 720px) {
+  .inventory-scanner-backdrop {
+    padding: 0;
+  }
+
+  .inventory-scanner-dialog {
+    width: 100%;
+    max-height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+    padding: 14px;
+  }
+
+  .inventory-scanner-view {
+    aspect-ratio: 3 / 5;
+  }
+
+  .inventory-reader-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inventory-open-scanner {
+    width: 100%;
+  }
+}
