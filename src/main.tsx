@@ -14,6 +14,7 @@ import './pdf-responsibles';
 import './edit-product-modal-fix';
 import './location-weather';
 import './inventory-divergences';
+import './shared-code-batch-registration';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
