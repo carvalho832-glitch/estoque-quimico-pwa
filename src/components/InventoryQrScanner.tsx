@@ -13,18 +13,63 @@ type InventoryQrScannerProps = {
 
 const SAME_CODE_RELEASE_DELAY_MS = 950;
 
+type SafariWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
 export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<ScannerControls | null>(null);
   const onDetectedRef = useRef(onDetected);
   const blockedRawRef = useRef('');
   const lastResultAtRef = useRef(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const [status, setStatus] = useState('Abrindo câmera traseira...');
   const [error, setError] = useState('');
 
   useEffect(() => {
     onDetectedRef.current = onDetected;
   }, [onDetected]);
+
+  function playConfirmationBeep() {
+    const AudioContextClass = window.AudioContext || (window as SafariWindow).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    try {
+      let audioContext = audioContextRef.current;
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new AudioContextClass();
+        audioContextRef.current = audioContext;
+      }
+
+      const playTone = () => {
+        if (!audioContext) return;
+
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const startAt = audioContext.currentTime;
+
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(920, startAt);
+        gain.gain.setValueAtTime(0.0001, startAt);
+        gain.gain.exponentialRampToValueAtTime(0.18, startAt + 0.008);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.095);
+
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(startAt);
+        oscillator.stop(startAt + 0.1);
+      };
+
+      if (audioContext.state === 'suspended') {
+        void audioContext.resume().then(playTone).catch(() => undefined);
+      } else {
+        playTone();
+      }
+    } catch (audioError) {
+      console.warn('Não foi possível reproduzir o beep do leitor.', audioError);
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -74,6 +119,7 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
 
             blockedRawRef.current = rawValue;
             onDetectedRef.current(rawValue);
+            playConfirmationBeep();
             setStatus('Item contabilizado. Aponte para o próximo QR Code.');
 
             if ('vibrate' in navigator) navigator.vibrate(60);
@@ -109,12 +155,16 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
       window.clearInterval(releaseTimer);
       controlsRef.current?.stop();
       controlsRef.current = null;
+      void audioContextRef.current?.close().catch(() => undefined);
+      audioContextRef.current = null;
     };
   }, []);
 
   function closeScanner() {
     controlsRef.current?.stop();
     controlsRef.current = null;
+    void audioContextRef.current?.close().catch(() => undefined);
+    audioContextRef.current = null;
     onClose();
   }
 
