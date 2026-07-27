@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { parseInventoryQr } from '../lib/qr';
 import type { Product } from '../types';
+import InventoryQrScanner from './InventoryQrScanner';
 import './InventorySession.css';
 
 type InventoryStatus = 'ready' | 'counting' | 'review';
@@ -61,14 +63,19 @@ function formatStartedAt(value: string): string {
 }
 
 function formatExpiryDate(value: string): string {
-  if (!value) return 'Não informada';
+  if (!value) return 'Não cadastrada';
   const [year, month, day] = value.split('-');
   return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+function normalize(value: string): string {
+  return value.trim().toUpperCase();
 }
 
 export default function InventorySession({ open, products, onClose }: InventorySessionProps) {
   const [session, setSession] = useState<TemporaryInventorySession>(() => loadSession());
   const [message, setMessage] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -81,7 +88,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     document.body.style.overflow = 'hidden';
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape' && !scannerOpen) onClose();
     }
 
     window.addEventListener('keydown', handleKeyDown);
@@ -89,7 +96,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, onClose]);
+  }, [open, onClose, scannerOpen]);
 
   const totals = useMemo(() => {
     const countedUnits = session.rows.reduce((sum, row) => sum + row.countedQuantity, 0);
@@ -111,21 +118,92 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       rows: [],
     });
     setMessage('Sessão temporária iniciada. Nenhuma quantidade do estoque foi alterada.');
+    setScannerOpen(true);
+  }
+
+  function countQrCode(rawValue: string) {
+    try {
+      const qr = parseInventoryQr(rawValue);
+      const exactProduct = products.find(
+        (product) => normalize(product.ecode) === qr.ecode && normalize(product.batch) === qr.batch,
+      );
+      const knownProduct = exactProduct ?? products.find((product) => normalize(product.ecode) === qr.ecode);
+      const rowId = exactProduct?.id ?? `not-registered:${qr.ecode}:${qr.batch}`;
+      const previousRow = session.rows.find((row) => row.productId === rowId);
+      const nextQuantity = (previousRow?.countedQuantity ?? 0) + 1;
+
+      setSession((current) => {
+        const existingIndex = current.rows.findIndex((row) => row.productId === rowId);
+
+        if (existingIndex >= 0) {
+          const rows = [...current.rows];
+          rows[existingIndex] = {
+            ...rows[existingIndex],
+            countedQuantity: rows[existingIndex].countedQuantity + 1,
+          };
+          return { ...current, status: 'counting', rows };
+        }
+
+        const newRow: TemporaryInventoryRow = {
+          productId: rowId,
+          ecode: qr.ecode,
+          name: exactProduct?.name ?? knownProduct?.name ?? 'Produto não cadastrado',
+          batch: qr.batch,
+          expiryDate: exactProduct?.expiryDate ?? '',
+          systemQuantity: exactProduct?.quantity ?? 0,
+          countedQuantity: 1,
+        };
+
+        return { ...current, status: 'counting', rows: [...current.rows, newRow] };
+      });
+
+      if (exactProduct) {
+        setMessage(`${exactProduct.name}, lote ${qr.batch}: ${nextQuantity} unidade(s) conferida(s).`);
+      } else if (knownProduct) {
+        setMessage(`Lote ${qr.batch} do E-code ${qr.ecode} não está cadastrado. A leitura foi mantida para revisão.`);
+      } else {
+        setMessage(`E-code ${qr.ecode}, lote ${qr.batch}, não está cadastrado. A leitura foi mantida para revisão.`);
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage(error instanceof Error ? error.message : 'O QR Code lido não possui o formato esperado.');
+    }
+  }
+
+  function changeCount(productId: string, delta: number) {
+    setSession((current) => {
+      const row = current.rows.find((item) => item.productId === productId);
+      if (!row) return current;
+
+      const nextQuantity = row.countedQuantity + delta;
+      if (nextQuantity <= 0) {
+        return { ...current, rows: current.rows.filter((item) => item.productId !== productId) };
+      }
+
+      return {
+        ...current,
+        rows: current.rows.map((item) => (
+          item.productId === productId ? { ...item, countedQuantity: nextQuantity } : item
+        )),
+      };
+    });
   }
 
   function finishReading() {
     if (!session.rows.length) {
-      setMessage('Ainda não há itens na conferência. O leitor contínuo será conectado na Fase 2.');
+      setMessage('Ainda não há itens na conferência. Abra o leitor e escaneie pelo menos um produto.');
       return;
     }
 
+    setScannerOpen(false);
     setSession((current) => ({ ...current, status: 'review' }));
-    setMessage('Leitura finalizada. Revise os dados antes de atualizar o estoque.');
+    setMessage('Leitura finalizada. Revise E-code, lote, validade e quantidades antes da atualização.');
   }
 
   function resumeReading() {
     setSession((current) => ({ ...current, status: 'counting' }));
     setMessage('Conferência reaberta para novas leituras.');
+    setScannerOpen(true);
   }
 
   function cancelInventory() {
@@ -136,6 +214,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       return;
     }
 
+    setScannerOpen(false);
     setSession(EMPTY_SESSION);
     window.localStorage.removeItem(STORAGE_KEY);
     setMessage('Inventário temporário cancelado. Nenhum dado do estoque foi modificado.');
@@ -149,6 +228,10 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
   return (
     <div className="inventory-window-backdrop" role="presentation">
+      {scannerOpen && session.status === 'counting' && (
+        <InventoryQrScanner onDetected={countQrCode} onClose={() => setScannerOpen(false)} />
+      )}
+
       <section className="inventory-window" role="dialog" aria-modal="true" aria-labelledby="temporary-inventory-title">
         <header className="inventory-window-header">
           <div>
@@ -189,10 +272,22 @@ export default function InventorySession({ open, products, onClose }: InventoryS
           </div>
         ) : (
           <>
-            <div className="inventory-phase-notice">
-              <strong>Estrutura da Fase 1 ativa</strong>
-              <span>O leitor contínuo de QR Code será conectado nesta janela na Fase 2.</span>
-            </div>
+            {session.status === 'counting' ? (
+              <div className="inventory-reader-panel">
+                <div>
+                  <strong>Leitor contínuo disponível</strong>
+                  <span>Cada QR soma uma unidade mantendo os lotes separados.</span>
+                </div>
+                <button className="inventory-open-scanner" type="button" onClick={() => setScannerOpen(true)}>
+                  Abrir leitor QR
+                </button>
+              </div>
+            ) : (
+              <div className="inventory-phase-notice">
+                <strong>Lista pronta para conferência</strong>
+                <span>Confira os dados físicos antes de atualizar o estoque na próxima etapa.</span>
+              </div>
+            )}
 
             <div className="inventory-table-wrap">
               <table className="inventory-review-table">
@@ -208,13 +303,19 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                 </thead>
                 <tbody>
                   {session.rows.length ? session.rows.map((row) => (
-                    <tr key={`${row.productId}-${row.batch}`}>
+                    <tr key={row.productId}>
                       <td data-label="E-code">{row.ecode}</td>
                       <td data-label="Produto">{row.name}</td>
                       <td data-label="Lote">{row.batch}</td>
                       <td data-label="Validade">{formatExpiryDate(row.expiryDate)}</td>
                       <td data-label="Sistema">{row.systemQuantity}</td>
-                      <td data-label="Conferido">{row.countedQuantity}</td>
+                      <td data-label="Conferido">
+                        <div className="inventory-count-control">
+                          <button type="button" onClick={() => changeCount(row.productId, -1)} aria-label={`Diminuir contagem de ${row.name}`}>−</button>
+                          <strong>{row.countedQuantity}</strong>
+                          <button type="button" onClick={() => changeCount(row.productId, 1)} aria-label={`Aumentar contagem de ${row.name}`}>+</button>
+                        </div>
+                      </td>
                     </tr>
                   )) : (
                     <tr>
@@ -243,8 +344,8 @@ export default function InventorySession({ open, products, onClose }: InventoryS
             <button
               className="inventory-update-action"
               type="button"
-              disabled={session.status !== 'review' || !session.rows.length}
-              title="Será habilitado após a leitura e revisão dos itens"
+              disabled
+              title="A atualização em lote será conectada na Fase 3"
             >
               Atualizar estoque
             </button>
