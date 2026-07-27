@@ -13,6 +13,7 @@ import './in-use-alert';
 import './pdf-responsibles';
 import './edit-product-modal-fix';
 import './location-weather';
+import './inventory-divergences';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
