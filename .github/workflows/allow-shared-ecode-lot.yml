@@ -1,10 +1,8 @@
 name: Ajustar E-code e lote compartilhados
 
 on:
-  push:
+  pull_request:
     branches: [main]
-    paths:
-      - '.github/workflows/allow-shared-ecode-lot.yml'
 
 permissions:
   contents: write
@@ -17,6 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.head_ref }}
 
       - name: Ajustar validações
         run: |
@@ -123,7 +122,7 @@ jobs:
 
           sw_path = Path('public/sw.js')
           sw = sw_path.read_text(encoding='utf-8')
-          if "quimstock-v46" not in sw:
+          if 'quimstock-v46' not in sw:
               raise SystemExit('Versão esperada do cache não encontrada')
           sw_path.write_text(sw.replace('quimstock-v46', 'quimstock-v47', 1), encoding='utf-8')
           PY
@@ -138,11 +137,11 @@ jobs:
           npm install
           npm run build
 
-      - name: Publicar correção
+      - name: Publicar correção na branch
         run: |
           rm .github/workflows/allow-shared-ecode-lot.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Permitir produtos diferentes com mesmo E-code e lote"
-          git push
+          git push origin HEAD:${{ github.head_ref }}
