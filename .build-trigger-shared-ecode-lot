@@ -1,2 +1,2 @@
 Executar correção para produtos diferentes com E-code e lote compartilhados.
-Nova tentativa após ativação do workflow.
+Disparo final via pull_request_target.
