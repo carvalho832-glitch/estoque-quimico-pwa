@@ -15,6 +15,12 @@ import { firebaseAuth, firebaseDb } from './firebase';
 const DB_NAME = 'quimstock-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'products';
+const FIRESTORE_BATCH_LIMIT = 450;
+
+export type BatchSaveResult = {
+  saved: number;
+  syncState: 'local' | 'synced' | 'pending';
+};
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -68,6 +74,23 @@ async function saveLocalProduct(product: Product): Promise<IDBValidKey> {
     request.onerror = () => reject(request.error ?? new Error('Falha ao salvar no banco local.'));
     transaction.oncomplete = () => db.close();
     transaction.onerror = () => reject(transaction.error ?? new Error('Falha na transação local.'));
+  });
+}
+
+async function saveLocalProducts(products: Product[]): Promise<void> {
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    products.forEach((product) => store.put(product));
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao atualizar o inventário local.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('A atualização do inventário foi cancelada pelo banco local.'));
   });
 }
 
@@ -134,6 +157,33 @@ export async function saveProduct(product: Product): Promise<IDBValidKey> {
   }
 
   return localKey;
+}
+
+export async function saveProductsBatch(products: Product[]): Promise<BatchSaveResult> {
+  const uniqueProducts = [...new Map(products.map((product) => [product.id, product])).values()];
+  if (!uniqueProducts.length) return { saved: 0, syncState: 'local' };
+
+  await saveLocalProducts(uniqueProducts);
+
+  const user = firebaseAuth?.currentUser;
+  if (!user || !firebaseDb) {
+    return { saved: uniqueProducts.length, syncState: 'local' };
+  }
+
+  try {
+    for (let start = 0; start < uniqueProducts.length; start += FIRESTORE_BATCH_LIMIT) {
+      const cloudBatch = writeBatch(firebaseDb);
+      uniqueProducts.slice(start, start + FIRESTORE_BATCH_LIMIT).forEach((product) => {
+        cloudBatch.set(cloudProductDocument(user.uid, product.id), cleanProduct(product));
+      });
+      await cloudBatch.commit();
+    }
+
+    return { saved: uniqueProducts.length, syncState: 'synced' };
+  } catch (error) {
+    console.error('Inventário atualizado localmente, mas a sincronização em lote ficou pendente:', error);
+    return { saved: uniqueProducts.length, syncState: 'pending' };
+  }
 }
 
 export async function removeProduct(id: string): Promise<void> {
