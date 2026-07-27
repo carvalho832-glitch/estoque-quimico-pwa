@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { saveProductsBatch } from '../lib/db';
 import { parseInventoryQr } from '../lib/qr';
 import type { Product } from '../types';
+import InventoryManualEntry, {
+  MANUAL_ENTRY_REASON_LABELS,
+  type ManualEntryReason,
+} from './InventoryManualEntry';
 import InventoryQrScanner from './InventoryQrScanner';
 import './InventorySession.css';
 
@@ -15,6 +19,9 @@ export type TemporaryInventoryRow = {
   expiryDate: string;
   systemQuantity: number;
   countedQuantity: number;
+  qrCount?: number;
+  manualCount?: number;
+  manualReasons?: ManualEntryReason[];
 };
 
 type TemporaryInventorySession = {
@@ -36,6 +43,10 @@ const EMPTY_SESSION: TemporaryInventorySession = {
   rows: [],
 };
 
+function isManualEntryReason(value: unknown): value is ManualEntryReason {
+  return value === 'damaged-qr' || value === 'missing-qr';
+}
+
 function loadSession(): TemporaryInventorySession {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
@@ -44,10 +55,27 @@ function loadSession(): TemporaryInventorySession {
     const parsed = JSON.parse(stored) as Partial<TemporaryInventorySession>;
     if (!Array.isArray(parsed.rows)) return EMPTY_SESSION;
 
+    const rows = parsed.rows.map((row) => {
+      const countedQuantity = Math.max(0, Number(row.countedQuantity) || 0);
+      const savedQrCount = Math.max(0, Number(row.qrCount) || 0);
+      const savedManualCount = Math.max(0, Number(row.manualCount) || 0);
+      const hasSavedOrigin = savedQrCount > 0 || savedManualCount > 0;
+
+      return {
+        ...row,
+        countedQuantity,
+        qrCount: hasSavedOrigin ? savedQrCount : countedQuantity,
+        manualCount: savedManualCount,
+        manualReasons: Array.isArray(row.manualReasons)
+          ? row.manualReasons.filter(isManualEntryReason)
+          : [],
+      };
+    });
+
     return {
       status: parsed.status === 'counting' || parsed.status === 'review' ? parsed.status : 'ready',
       startedAt: typeof parsed.startedAt === 'string' ? parsed.startedAt : '',
-      rows: parsed.rows,
+      rows,
     };
   } catch {
     return EMPTY_SESSION;
@@ -77,6 +105,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
   const [session, setSession] = useState<TemporaryInventorySession>(() => loadSession());
   const [message, setMessage] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   const productsById = useMemo(
@@ -132,7 +161,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     document.body.style.overflow = 'hidden';
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !scannerOpen && !updating) onClose();
+      if (event.key === 'Escape' && !scannerOpen && !manualEntryOpen && !updating) onClose();
     }
 
     window.addEventListener('keydown', handleKeyDown);
@@ -140,7 +169,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open, onClose, scannerOpen, updating]);
+  }, [open, onClose, scannerOpen, manualEntryOpen, updating]);
 
   const totals = useMemo(() => {
     const countedUnits = session.rows.reduce((sum, row) => sum + row.countedQuantity, 0);
@@ -167,6 +196,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       rows: [],
     });
     setMessage('Sessão temporária iniciada. Nenhuma quantidade do estoque foi alterada.');
+    setManualEntryOpen(false);
     setScannerOpen(true);
   }
 
@@ -189,6 +219,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
           rows[existingIndex] = {
             ...rows[existingIndex],
             countedQuantity: rows[existingIndex].countedQuantity + 1,
+            qrCount: (rows[existingIndex].qrCount ?? 0) + 1,
           };
           return { ...current, status: 'counting', rows };
         }
@@ -201,6 +232,9 @@ export default function InventorySession({ open, products, onClose }: InventoryS
           expiryDate: exactProduct?.expiryDate ?? '',
           systemQuantity: exactProduct?.quantity ?? 0,
           countedQuantity: 1,
+          qrCount: 1,
+          manualCount: 0,
+          manualReasons: [],
         };
 
         return { ...current, status: 'counting', rows: [...current.rows, newRow] };
@@ -217,6 +251,51 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       console.error(error);
       setMessage(error instanceof Error ? error.message : 'O QR Code lido não possui o formato esperado.');
     }
+  }
+
+  function addManualProduct(productId: string, quantity: number, reason: ManualEntryReason) {
+    const product = productsById.get(productId);
+    if (!product) {
+      setMessage('O produto selecionado não está mais disponível no cadastro.');
+      return;
+    }
+
+    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+
+    setSession((current) => {
+      const existingIndex = current.rows.findIndex((row) => row.productId === product.id);
+
+      if (existingIndex >= 0) {
+        const rows = [...current.rows];
+        const currentReasons = rows[existingIndex].manualReasons ?? [];
+        rows[existingIndex] = {
+          ...rows[existingIndex],
+          countedQuantity: rows[existingIndex].countedQuantity + safeQuantity,
+          manualCount: (rows[existingIndex].manualCount ?? 0) + safeQuantity,
+          manualReasons: currentReasons.includes(reason)
+            ? currentReasons
+            : [...currentReasons, reason],
+        };
+        return { ...current, rows };
+      }
+
+      const newRow: TemporaryInventoryRow = {
+        productId: product.id,
+        ecode: product.ecode,
+        name: product.name,
+        batch: product.batch,
+        expiryDate: product.expiryDate,
+        systemQuantity: product.quantity,
+        countedQuantity: safeQuantity,
+        qrCount: 0,
+        manualCount: safeQuantity,
+        manualReasons: [reason],
+      };
+
+      return { ...current, rows: [...current.rows, newRow] };
+    });
+
+    setMessage(`${product.name}, lote ${product.batch}: ${safeQuantity} unidade(s) adicionada(s) manualmente por “${MANUAL_ENTRY_REASON_LABELS[reason]}”.`);
   }
 
   function changeCount(productId: string, delta: number) {
@@ -242,11 +321,12 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
   function finishReading() {
     if (!session.rows.length) {
-      setMessage('Ainda não há itens na conferência. Abra o leitor e escaneie pelo menos um produto.');
+      setMessage('Ainda não há itens na conferência. Use o leitor QR ou adicione um produto manualmente.');
       return;
     }
 
     setScannerOpen(false);
+    setManualEntryOpen(false);
     setSession((current) => ({ ...current, status: 'review' }));
     setMessage('Leitura finalizada. Revise E-code, lote, validade e quantidades antes da atualização.');
   }
@@ -268,6 +348,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     }
 
     setScannerOpen(false);
+    setManualEntryOpen(false);
     setSession(EMPTY_SESSION);
     window.localStorage.removeItem(STORAGE_KEY);
     setMessage('Inventário temporário cancelado. Nenhum dado do estoque foi modificado.');
@@ -299,6 +380,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     try {
       const result = await saveProductsBatch(updatedProducts);
       setScannerOpen(false);
+      setManualEntryOpen(false);
       setSession(EMPTY_SESSION);
       window.localStorage.removeItem(STORAGE_KEY);
 
@@ -334,6 +416,14 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     <div className="inventory-window-backdrop" role="presentation">
       {scannerOpen && session.status === 'counting' && (
         <InventoryQrScanner onDetected={countQrCode} onClose={() => setScannerOpen(false)} />
+      )}
+
+      {manualEntryOpen && session.status !== 'ready' && (
+        <InventoryManualEntry
+          products={products}
+          onAdd={addManualProduct}
+          onClose={() => setManualEntryOpen(false)}
+        />
       )}
 
       <section className="inventory-window" role="dialog" aria-modal="true" aria-labelledby="temporary-inventory-title">
@@ -387,22 +477,34 @@ export default function InventorySession({ open, products, onClose }: InventoryS
             {session.status === 'counting' ? (
               <div className="inventory-reader-panel">
                 <div>
-                  <strong>Leitor contínuo disponível</strong>
-                  <span>Cada QR soma uma unidade mantendo os lotes separados.</span>
+                  <strong>Escolha como contabilizar</strong>
+                  <span>Leia o QR ou inclua manualmente quando a etiqueta estiver ausente ou danificada.</span>
                 </div>
-                <button className="inventory-open-scanner" type="button" onClick={() => setScannerOpen(true)}>
-                  Abrir leitor QR
-                </button>
+                <div className="inventory-reader-actions">
+                  <button className="inventory-open-scanner" type="button" onClick={() => setScannerOpen(true)}>
+                    Abrir leitor QR
+                  </button>
+                  <button className="inventory-manual-open" type="button" onClick={() => setManualEntryOpen(true)}>
+                    Adicionar manualmente
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className={`inventory-phase-notice ${unregisteredCount ? 'inventory-phase-warning' : ''}`}>
-                <strong>{unregisteredCount ? `${unregisteredCount} lote(s) precisam de correção` : 'Lista pronta para atualização'}</strong>
-                <span>
-                  {unregisteredCount
-                    ? 'Cadastre os lotes ausentes ou reduza a contagem deles até removê-los da lista.'
-                    : 'Somente os lotes desta lista terão as quantidades substituídas.'}
-                </span>
-              </div>
+              <>
+                <div className={`inventory-phase-notice ${unregisteredCount ? 'inventory-phase-warning' : ''}`}>
+                  <strong>{unregisteredCount ? `${unregisteredCount} lote(s) precisam de correção` : 'Lista pronta para atualização'}</strong>
+                  <span>
+                    {unregisteredCount
+                      ? 'Cadastre os lotes ausentes ou reduza a contagem deles até removê-los da lista.'
+                      : 'Somente os lotes desta lista terão as quantidades substituídas.'}
+                  </span>
+                </div>
+                <div className="inventory-review-manual">
+                  <button className="inventory-manual-open" type="button" onClick={() => setManualEntryOpen(true)} disabled={updating}>
+                    Adicionar item esquecido
+                  </button>
+                </div>
+              </>
             )}
 
             <div className="inventory-table-wrap">
@@ -413,6 +515,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                     <th>Produto</th>
                     <th>Lote</th>
                     <th>Validade</th>
+                    <th>Origem</th>
                     <th>Sistema</th>
                     <th>Conferido</th>
                   </tr>
@@ -420,12 +523,28 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                 <tbody>
                   {session.rows.length ? session.rows.map((row) => {
                     const registered = productsById.has(row.productId);
+                    const hasQr = (row.qrCount ?? 0) > 0;
+                    const hasManual = (row.manualCount ?? 0) > 0;
+                    const manualTitle = (row.manualReasons ?? [])
+                      .map((reason) => MANUAL_ENTRY_REASON_LABELS[reason])
+                      .join(', ');
+
                     return (
                       <tr className={registered ? '' : 'inventory-unregistered-row'} key={row.productId}>
                         <td data-label="E-code">{row.ecode}</td>
                         <td data-label="Produto">{row.name}</td>
                         <td data-label="Lote">{row.batch}</td>
                         <td data-label="Validade">{formatExpiryDate(row.expiryDate)}</td>
+                        <td data-label="Origem">
+                          <div className="inventory-source-badges">
+                            {hasQr && <span className="inventory-source-badge qr">QR</span>}
+                            {hasManual && (
+                              <span className="inventory-source-badge manual" title={manualTitle || 'Inclusão manual'}>
+                                Manual
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td data-label="Sistema">{registered ? row.systemQuantity : 'Não cadastrado'}</td>
                         <td data-label="Conferido">
                           <div className="inventory-count-control">
@@ -452,8 +571,8 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                     );
                   }) : (
                     <tr>
-                      <td className="inventory-empty-row" colSpan={6}>
-                        Nenhum QR Code contabilizado nesta sessão.
+                      <td className="inventory-empty-row" colSpan={7}>
+                        Nenhum item contabilizado nesta sessão.
                       </td>
                     </tr>
                   )}
