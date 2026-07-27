@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import CloudSession from './components/CloudSession';
+import InventoryFeature from './components/InventoryFeature';
 import Dashboard from './Dashboard';
 import './styles.css';
 import './dashboard-usage.css';
@@ -19,7 +20,14 @@ const isDashboard = params.get('view') === 'dashboard';
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <CloudSession>
-      {isDashboard ? <Dashboard /> : <App />}
+      {isDashboard ? (
+        <Dashboard />
+      ) : (
+        <>
+          <App />
+          <InventoryFeature />
+        </>
+      )}
     </CloudSession>
   </React.StrictMode>,
 );
