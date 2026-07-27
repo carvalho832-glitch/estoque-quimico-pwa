@@ -1,21 +1,23 @@
 name: Ajustar E-code e lote compartilhados
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   ajustar:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar código
+      - name: Baixar código da branch do pull request
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Ajustar validações
         run: |
@@ -140,8 +142,9 @@ jobs:
       - name: Publicar correção na branch
         run: |
           rm .github/workflows/allow-shared-ecode-lot.yml
+          rm -f .build-trigger-shared-ecode-lot
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "Permitir produtos diferentes com mesmo E-code e lote"
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
