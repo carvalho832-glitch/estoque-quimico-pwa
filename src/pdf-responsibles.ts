@@ -1,5 +1,9 @@
 import { listProducts } from './lib/db';
-import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
+import {
+  exportOrShareProductsToExcel,
+  exportOrShareProductsToPdf,
+  preloadExcelExporter,
+} from './lib/excel';
 import './pdf-responsibles.css';
 
 const UPDATED_BY_KEY = 'quimstock:pdf-updated-by';
@@ -26,6 +30,9 @@ function createField(labelText: string, value: string, placeholder: string): { w
 function openReportDialog(format: ReportFormat): void {
   if (document.querySelector('.pdf-dialog-backdrop')) return;
 
+  if (format === 'excel') preloadExcelExporter();
+  const productsPromise = listProducts();
+
   const backdrop = document.createElement('div');
   backdrop.className = 'pdf-dialog-backdrop';
   backdrop.setAttribute('role', 'presentation');
@@ -46,7 +53,8 @@ function openReportDialog(format: ReportFormat): void {
   title.id = 'pdf-dialog-title';
   title.textContent = `Identificar responsáveis do ${format === 'excel' ? 'Excel' : 'PDF'}`;
   const hint = document.createElement('p');
-  hint.textContent = 'Informe quem atualizou e quem conferiu a lista antes de gerar o arquivo.';
+  const defaultHint = 'Informe quem atualizou e quem conferiu a lista antes de gerar e compartilhar o arquivo.';
+  hint.textContent = defaultHint;
   heading.append(eyebrow, title, hint);
 
   const close = document.createElement('button');
@@ -71,7 +79,7 @@ function openReportDialog(format: ReportFormat): void {
   const generate = document.createElement('button');
   generate.type = 'button';
   generate.className = 'primary-button';
-  const generateLabel = format === 'excel' ? 'Gerar Excel' : 'Gerar PDF';
+  const generateLabel = 'Gerar / compartilhar';
   generate.textContent = generateLabel;
   actions.append(cancel, generate);
 
@@ -92,6 +100,8 @@ function openReportDialog(format: ReportFormat): void {
   });
 
   generate.addEventListener('click', async () => {
+    hint.classList.remove('pdf-dialog-error');
+    hint.textContent = defaultHint;
     const updatedBy = updated.input.value.trim();
     const checkedBy = checked.input.value.trim();
     if (!updatedBy || !checkedBy) {
@@ -103,15 +113,21 @@ function openReportDialog(format: ReportFormat): void {
     localStorage.setItem(UPDATED_BY_KEY, updatedBy);
     localStorage.setItem(CHECKED_BY_KEY, checkedBy);
     generate.disabled = true;
-    generate.textContent = 'Gerando...';
+    generate.textContent = 'Preparando arquivo...';
     try {
-      const products = await listProducts();
-      if (format === 'excel') {
-        await exportProductsToExcel(products, { updatedBy, checkedBy });
-      } else {
-        exportProductsToPdf(products, { updatedBy, checkedBy });
+      const products = await productsPromise;
+      const result = format === 'excel'
+        ? await exportOrShareProductsToExcel(products, { updatedBy, checkedBy })
+        : await exportOrShareProductsToPdf(products, { updatedBy, checkedBy });
+
+      if (result === 'cancelled') {
+        hint.textContent = 'Compartilhamento cancelado. Toque no botão para tentar novamente.';
+        return;
       }
       dismiss();
+    } catch {
+      hint.classList.add('pdf-dialog-error');
+      hint.textContent = 'Não foi possível preparar o arquivo. Tente novamente.';
     } finally {
       generate.disabled = false;
       generate.textContent = generateLabel;
@@ -122,16 +138,11 @@ function openReportDialog(format: ReportFormat): void {
 }
 
 function installReportDialogs(): void {
-  document.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+  document.querySelectorAll<HTMLButtonElement>('button[data-report-format]').forEach((button) => {
     if (button.closest('.pdf-dialog')) return;
-    const label = button.textContent?.trim();
-    const format: ReportFormat | null = label === 'Gerar Excel'
-      ? 'excel'
-      : label === 'Gerar PDF'
-        ? 'pdf'
-        : null;
+    const format = button.dataset.reportFormat;
 
-    if (!format || button.dataset.reportResponsiblesReady === 'true') return;
+    if ((format !== 'excel' && format !== 'pdf') || button.dataset.reportResponsiblesReady === 'true') return;
     button.dataset.reportResponsiblesReady = 'true';
     button.addEventListener('click', (event) => {
       event.preventDefault();

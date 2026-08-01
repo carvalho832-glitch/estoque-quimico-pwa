@@ -38,6 +38,10 @@
   line-height: 1.45;
 }
 
+.pdf-dialog-header .pdf-dialog-error {
+  color: #a7291f;
+}
+
 .pdf-dialog-close {
   display: grid;
   place-items: center;

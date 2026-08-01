@@ -19,6 +19,16 @@ const DEFAULT_OPTIONS: Required<ReportOptions> = {
   revision: 'A',
 };
 
+const EXCEL_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+export type ReportDeliveryResult = 'shared' | 'downloaded' | 'cancelled';
+
+type ExcelJSRuntime = {
+  Workbook: typeof import('exceljs').Workbook;
+};
+
+let excelRuntimePromise: Promise<ExcelJSRuntime> | null = null;
+
 const FACC_REPORT_LOGO_BASE64 = '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';
 
 function formatDate(value: string): string {
@@ -68,6 +78,66 @@ function groupProducts(products: Product[]): Array<[string, Product[]]> {
         a.batch.localeCompare(b.batch, 'pt-BR'),
       ),
     ]);
+}
+
+function reportFileName(extension: 'pdf' | 'xlsx'): string {
+  const date = new Date().toISOString().slice(0, 10);
+  return `controle-materiais-kit-${date}.${extension}`;
+}
+
+function downloadFile(file: File): void {
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = file.name;
+  anchor.style.display = 'none';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function shareOrDownloadFile(file: File): Promise<ReportDeliveryResult> {
+  const shareData: ShareData = {
+    title: 'Relatório de estoque do QuimStock',
+    files: [file],
+  };
+
+  let canShareFile = false;
+  try {
+    canShareFile = typeof navigator.share === 'function'
+      && typeof navigator.canShare === 'function'
+      && navigator.canShare({ files: [file] });
+  } catch {
+    canShareFile = false;
+  }
+
+  if (canShareFile) {
+    try {
+      await navigator.share(shareData);
+      return 'shared';
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return 'cancelled';
+      }
+    }
+  }
+
+  downloadFile(file);
+  return 'downloaded';
+}
+
+function loadExcelRuntime(): Promise<ExcelJSRuntime> {
+  excelRuntimePromise ??= import('exceljs').then(
+    (module) => (module as unknown as { default: ExcelJSRuntime }).default,
+  );
+  return excelRuntimePromise;
+}
+
+export function preloadExcelExporter(): void {
+  void loadExcelRuntime().catch(() => {
+    excelRuntimePromise = null;
+  });
 }
 
 function drawHeader(doc: jsPDF, options: Required<ReportOptions>): void {
@@ -130,7 +200,7 @@ function drawFooter(doc: jsPDF, options: Required<ReportOptions>): void {
   doc.text(`Página ${pageNumber}`, pageWidth - 8, pageHeight - 4.5, { align: 'right' });
 }
 
-export function exportProductsToPdf(products: Product[], reportOptions: ReportOptions = {}): void {
+function createProductsPdfDocument(products: Product[], reportOptions: ReportOptions = {}): jsPDF {
   const options = { ...DEFAULT_OPTIONS, ...reportOptions };
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -231,8 +301,23 @@ export function exportProductsToPdf(products: Product[], reportOptions: ReportOp
     },
   });
 
-  const date = new Date().toISOString().slice(0, 10);
-  doc.save(`controle-materiais-kit-${date}.pdf`);
+  return doc;
+}
+
+function createProductsPdfFile(products: Product[], reportOptions: ReportOptions = {}): File {
+  const document = createProductsPdfDocument(products, reportOptions);
+  return new File([document.output('blob')], reportFileName('pdf'), { type: 'application/pdf' });
+}
+
+export function exportProductsToPdf(products: Product[], reportOptions: ReportOptions = {}): void {
+  downloadFile(createProductsPdfFile(products, reportOptions));
+}
+
+export async function exportOrShareProductsToPdf(
+  products: Product[],
+  reportOptions: ReportOptions = {},
+): Promise<ReportDeliveryResult> {
+  return shareOrDownloadFile(createProductsPdfFile(products, reportOptions));
 }
 
 function parseExcelDate(value: string): Date | string | null {
@@ -283,19 +368,8 @@ function styleReportRow(row: ExcelJS.Row, kind: 'header' | 'location' | 'product
   }
 }
 
-function downloadExcel(buffer: ExcelJS.Buffer, fileName: string): void {
-  const blob = new Blob([buffer as BlobPart], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.style.display = 'none';
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+function createProductsExcelFile(buffer: ExcelJS.Buffer): File {
+  return new File([buffer as BlobPart], reportFileName('xlsx'), { type: EXCEL_MIME_TYPE });
 }
 
 export async function createProductsExcelBuffer(
@@ -303,7 +377,7 @@ export async function createProductsExcelBuffer(
   reportOptions: ReportOptions = {},
 ): Promise<ExcelJS.Buffer> {
   const options = { ...DEFAULT_OPTIONS, ...reportOptions };
-  const { default: ExcelJSRuntime } = await import('exceljs');
+  const ExcelJSRuntime = await loadExcelRuntime();
   const workbook = new ExcelJSRuntime.Workbook();
   workbook.creator = 'QuimStock';
   workbook.lastModifiedBy = 'QuimStock';
@@ -457,6 +531,13 @@ export async function exportProductsToExcel(
   reportOptions: ReportOptions = {},
 ): Promise<void> {
   const buffer = await createProductsExcelBuffer(products, reportOptions);
-  const date = new Date().toISOString().slice(0, 10);
-  downloadExcel(buffer, `controle-materiais-kit-${date}.xlsx`);
+  downloadFile(createProductsExcelFile(buffer));
+}
+
+export async function exportOrShareProductsToExcel(
+  products: Product[],
+  reportOptions: ReportOptions = {},
+): Promise<ReportDeliveryResult> {
+  const buffer = await createProductsExcelBuffer(products, reportOptions);
+  return shareOrDownloadFile(createProductsExcelFile(buffer));
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listProducts } from './lib/db';
-import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
+import { exportOrShareProductsToExcel, exportOrShareProductsToPdf } from './lib/excel';
 import { daysUntilExpiry, formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import type { ExpiryLevel, Product } from './types';
 import './dashboard.css';
@@ -165,18 +165,20 @@ export default function Dashboard() {
             <button
               type="button"
               className="dashboard-button secondary"
-              onClick={() => void exportProductsToExcel(products)}
+              data-report-format="excel"
+              onClick={() => void exportOrShareProductsToExcel(products)}
               disabled={!products.length}
             >
-              Gerar Excel
+              Excel: gerar / compartilhar
             </button>
             <button
               type="button"
               className="dashboard-button primary"
-              onClick={() => exportProductsToPdf(products)}
+              data-report-format="pdf"
+              onClick={() => void exportOrShareProductsToPdf(products)}
               disabled={!products.length}
             >
-              Gerar PDF
+              PDF: gerar / compartilhar
             </button>
           </div>
         </header>

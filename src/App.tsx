@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import ProductUsagePanel, { productIsInUse } from './components/ProductUsagePanel';
 import QrLiveScanner from './components/QrLiveScanner';
 import { listProducts, removeProduct, saveProduct } from './lib/db';
-import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
+import { exportOrShareProductsToExcel, exportOrShareProductsToPdf } from './lib/excel';
 import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
 import { parseInventoryQr, readInventoryQr } from './lib/qr';
@@ -429,11 +429,23 @@ export default function App() {
               <h2>Produtos cadastrados</h2>
             </div>
             <div className="inventory-export-actions">
-              <button className="secondary-button" type="button" onClick={() => void exportProductsToExcel(products)} disabled={!products.length}>
-                Gerar Excel
+              <button
+                className="secondary-button"
+                type="button"
+                data-report-format="excel"
+                onClick={() => void exportOrShareProductsToExcel(products)}
+                disabled={!products.length}
+              >
+                Excel: gerar / compartilhar
               </button>
-              <button className="secondary-button" type="button" onClick={() => exportProductsToPdf(products)} disabled={!products.length}>
-                Gerar PDF
+              <button
+                className="secondary-button"
+                type="button"
+                data-report-format="pdf"
+                onClick={() => void exportOrShareProductsToPdf(products)}
+                disabled={!products.length}
+              >
+                PDF: gerar / compartilhar
               </button>
             </div>
           </div>
