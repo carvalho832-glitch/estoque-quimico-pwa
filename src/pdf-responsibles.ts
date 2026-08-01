@@ -1,9 +1,10 @@
 import { listProducts } from './lib/db';
-import { exportProductsToPdf } from './lib/excel';
+import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
 import './pdf-responsibles.css';
 
 const UPDATED_BY_KEY = 'quimstock:pdf-updated-by';
 const CHECKED_BY_KEY = 'quimstock:pdf-checked-by';
+type ReportFormat = 'pdf' | 'excel';
 
 function createField(labelText: string, value: string, placeholder: string): { wrapper: HTMLLabelElement; input: HTMLInputElement } {
   const wrapper = document.createElement('label');
@@ -22,7 +23,7 @@ function createField(labelText: string, value: string, placeholder: string): { w
   return { wrapper, input };
 }
 
-function openPdfDialog(): void {
+function openReportDialog(format: ReportFormat): void {
   if (document.querySelector('.pdf-dialog-backdrop')) return;
 
   const backdrop = document.createElement('div');
@@ -43,7 +44,7 @@ function openPdfDialog(): void {
   eyebrow.textContent = 'RELATÓRIO DE ESTOQUE';
   const title = document.createElement('h2');
   title.id = 'pdf-dialog-title';
-  title.textContent = 'Identificar responsáveis';
+  title.textContent = `Identificar responsáveis do ${format === 'excel' ? 'Excel' : 'PDF'}`;
   const hint = document.createElement('p');
   hint.textContent = 'Informe quem atualizou e quem conferiu a lista antes de gerar o arquivo.';
   heading.append(eyebrow, title, hint);
@@ -70,7 +71,8 @@ function openPdfDialog(): void {
   const generate = document.createElement('button');
   generate.type = 'button';
   generate.className = 'primary-button';
-  generate.textContent = 'Gerar PDF';
+  const generateLabel = format === 'excel' ? 'Gerar Excel' : 'Gerar PDF';
+  generate.textContent = generateLabel;
   actions.append(cancel, generate);
 
   dialog.append(header, fields, actions);
@@ -104,36 +106,44 @@ function openPdfDialog(): void {
     generate.textContent = 'Gerando...';
     try {
       const products = await listProducts();
-      exportProductsToPdf(products, { updatedBy, checkedBy });
+      if (format === 'excel') {
+        await exportProductsToExcel(products, { updatedBy, checkedBy });
+      } else {
+        exportProductsToPdf(products, { updatedBy, checkedBy });
+      }
       dismiss();
     } finally {
       generate.disabled = false;
-      generate.textContent = 'Gerar PDF';
+      generate.textContent = generateLabel;
     }
   });
 
   window.setTimeout(() => updated.input.focus(), 50);
 }
 
-function installPdfDialog(): void {
-  const inventoryTitle = document.querySelector<HTMLElement>('.inventory-title');
-  if (!inventoryTitle || inventoryTitle.dataset.pdfResponsiblesReady === 'true') return;
+function installReportDialogs(): void {
+  document.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
+    if (button.closest('.pdf-dialog')) return;
+    const label = button.textContent?.trim();
+    const format: ReportFormat | null = label === 'Gerar Excel'
+      ? 'excel'
+      : label === 'Gerar PDF'
+        ? 'pdf'
+        : null;
 
-  const generateButton = [...inventoryTitle.querySelectorAll<HTMLButtonElement>('button')]
-    .find((button) => button.textContent?.trim() === 'Gerar PDF');
-  if (!generateButton) return;
-
-  inventoryTitle.dataset.pdfResponsiblesReady = 'true';
-  generateButton.addEventListener('click', (event) => {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    openPdfDialog();
-  }, true);
+    if (!format || button.dataset.reportResponsiblesReady === 'true') return;
+    button.dataset.reportResponsiblesReady = 'true';
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openReportDialog(format);
+    }, true);
+  });
 }
 
 function observePdfArea(): void {
-  installPdfDialog();
-  const observer = new MutationObserver(() => installPdfDialog());
+  installReportDialogs();
+  const observer = new MutationObserver(() => installReportDialogs());
   observer.observe(document.body, { childList: true, subtree: true });
 }
 

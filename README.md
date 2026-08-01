@@ -10,7 +10,7 @@ PWA para cadastro e controle de produtos químicos em estoque usando a câmera d
 - Cadastro, edição, exclusão e pesquisa
 - Armazenamento local com IndexedDB
 - Indicadores de produtos vencidos e próximos do vencimento
-- Exportação do estoque para arquivo `.xlsx`
+- Exportação do estoque para PDF e Excel (`.xlsx`) no padrão do controle de materiais
 - Instalação como PWA e funcionamento offline após o primeiro carregamento
 - Build automático e publicação pelo GitHub Pages
 

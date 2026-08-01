@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listProducts } from './lib/db';
-import { exportProductsToPdf } from './lib/excel';
+import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
 import { daysUntilExpiry, formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import type { ExpiryLevel, Product } from './types';
 import './dashboard.css';
@@ -161,6 +161,14 @@ export default function Dashboard() {
           <div className="dashboard-header-actions">
             <button type="button" className="dashboard-button secondary" onClick={() => void refresh()}>
               ↻ Atualizar
+            </button>
+            <button
+              type="button"
+              className="dashboard-button secondary"
+              onClick={() => void exportProductsToExcel(products)}
+              disabled={!products.length}
+            >
+              Gerar Excel
             </button>
             <button
               type="button"

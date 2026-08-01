@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import ProductUsagePanel, { productIsInUse } from './components/ProductUsagePanel';
 import QrLiveScanner from './components/QrLiveScanner';
 import { listProducts, removeProduct, saveProduct } from './lib/db';
-import { exportProductsToPdf } from './lib/excel';
+import { exportProductsToExcel, exportProductsToPdf } from './lib/excel';
 import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
 import { parseInventoryQr, readInventoryQr } from './lib/qr';
@@ -428,9 +428,14 @@ export default function App() {
               <span className="eyebrow">INVENTÁRIO CONECTADO</span>
               <h2>Produtos cadastrados</h2>
             </div>
-            <button className="secondary-button" type="button" onClick={() => exportProductsToPdf(products)} disabled={!products.length}>
-              Gerar PDF
-            </button>
+            <div className="inventory-export-actions">
+              <button className="secondary-button" type="button" onClick={() => void exportProductsToExcel(products)} disabled={!products.length}>
+                Gerar Excel
+              </button>
+              <button className="secondary-button" type="button" onClick={() => exportProductsToPdf(products)} disabled={!products.length}>
+                Gerar PDF
+              </button>
+            </div>
           </div>
 
           <label className="search-box">
