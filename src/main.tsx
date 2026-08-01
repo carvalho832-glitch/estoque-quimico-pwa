@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { Capacitor } from '@capacitor/core';
 import App from './App';
 import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
@@ -34,7 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 );
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta.env.PROD) {
   let refreshing = false;
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {

@@ -98,6 +98,41 @@ function downloadFile(file: File): void {
 }
 
 async function shareOrDownloadFile(file: File): Promise<ReportDeliveryResult> {
+  const { Capacitor } = await import('@capacitor/core');
+
+  if (Capacitor.isNativePlatform()) {
+    const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+      import('@capacitor/filesystem'),
+      import('@capacitor/share'),
+    ]);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = '';
+
+    for (let start = 0; start < bytes.length; start += 32768) {
+      binary += String.fromCharCode(...bytes.subarray(start, start + 32768));
+    }
+
+    const savedFile = await Filesystem.writeFile({
+      path: file.name,
+      data: btoa(binary),
+      directory: Directory.Cache,
+    });
+
+    try {
+      await Share.share({
+        title: 'Relatório de estoque do QuimStock',
+        files: [savedFile.uri],
+        dialogTitle: 'Compartilhar relatório',
+      });
+    } catch (error) {
+      if (error instanceof Error && /share canceled/i.test(error.message)) {
+        return 'cancelled';
+      }
+      throw error;
+    }
+    return 'shared';
+  }
+
   const shareData: ShareData = {
     title: 'Relatório de estoque do QuimStock',
     files: [file],

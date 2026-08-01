@@ -1,0 +1,61 @@
+name: Gerar QuimStock Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.ts'
+      - 'vite.config.ts'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Compilar APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Configurar Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Instalar dependências
+        run: npm ci --no-audit --no-fund
+
+      - name: Preparar aplicativo Android
+        run: npm run android:sync
+
+      - name: Compilar APK instalável
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Nomear APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk QuimStock-Android.apk
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v5
+        with:
+          name: QuimStock-Android
+          path: QuimStock-Android.apk
+          if-no-files-found: error
