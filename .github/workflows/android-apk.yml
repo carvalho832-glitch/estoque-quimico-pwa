@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Compilar APK
+    name: Compilar APK release
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -46,16 +46,26 @@ jobs:
       - name: Preparar aplicativo Android
         run: npm run android:sync
 
-      - name: Compilar APK instalável
+      - name: Compilar APK release sem assinatura
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
-      - name: Nomear APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk QuimStock-Android.apk
+      - name: Preparar APK e ferramentas de assinatura
+        run: |
+          set -e
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          mkdir -p quimstock-release-tools/lib
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk QuimStock-v1.1-unsigned.apk
+          cp "$BUILD_TOOLS/apksigner" quimstock-release-tools/apksigner
+          cp "$BUILD_TOOLS/zipalign" quimstock-release-tools/zipalign
+          cp "$BUILD_TOOLS/lib/apksigner.jar" quimstock-release-tools/lib/apksigner.jar
+          chmod +x quimstock-release-tools/apksigner quimstock-release-tools/zipalign
 
-      - name: Disponibilizar APK
+      - name: Disponibilizar release para assinatura
         uses: actions/upload-artifact@v5
         with:
-          name: QuimStock-Android
-          path: QuimStock-Android.apk
+          name: QuimStock-v1.1-release
+          path: |
+            QuimStock-v1.1-unsigned.apk
+            quimstock-release-tools/
           if-no-files-found: error
