@@ -39,30 +39,11 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Configurar Java
-        if: github.event_name != 'pull_request'
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-          cache: gradle
-
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
       - name: Gerar aplicação
         run: npm run build
-
-      - name: Gerar instalador Android
-        if: github.event_name != 'pull_request'
-        run: |
-          npx cap sync android
-          cd android
-          ./gradlew assembleDebug --no-daemon
-
-      - name: Incluir instalador no site
-        if: github.event_name != 'pull_request'
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk dist/QuimStock-Android.apk
 
       - name: Configurar GitHub Pages
         if: github.event_name != 'pull_request'
