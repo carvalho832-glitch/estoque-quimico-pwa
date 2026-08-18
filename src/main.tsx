@@ -17,6 +17,7 @@ import './location-weather';
 import './inventory-divergences';
 import './shared-code-batch-registration';
 import './inventory-review-improvements';
+import './inventory-product-inline-hotfix';
 
 const params = new URLSearchParams(window.location.search);
 const isDashboard = params.get('view') === 'dashboard';
