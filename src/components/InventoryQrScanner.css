@@ -105,6 +105,72 @@
   animation: inventory-scan-line 2s ease-in-out infinite;
 }
 
+.inventory-scan-confirmation {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 18px;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  border: 1px solid rgba(173, 234, 200, 0.8);
+  border-radius: 16px;
+  color: #123d2d;
+  background: rgba(237, 255, 245, 0.96);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  animation: inventory-confirmation-in 180ms ease-out;
+  pointer-events: none;
+}
+
+.inventory-scan-confirmation-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  background: #27855e;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.inventory-scan-confirmation-copy {
+  min-width: 0;
+}
+
+.inventory-scan-confirmation-copy strong,
+.inventory-scan-confirmation-copy span {
+  display: block;
+}
+
+.inventory-scan-confirmation-copy strong {
+  margin-bottom: 2px;
+  font-size: 0.96rem;
+}
+
+.inventory-scan-confirmation-copy span {
+  overflow: hidden;
+  color: #426659;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-scan-confirmation-unit {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  border-radius: 12px;
+  color: #1d6648;
+  background: #d7f3e3;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
 .inventory-scanner-status {
   margin: 12px 0 0;
   padding: 11px 13px;
@@ -206,6 +272,17 @@
   50% { top: 86%; }
 }
 
+@keyframes inventory-confirmation-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 720px) {
   .inventory-scanner-backdrop {
     padding: 0;
@@ -221,6 +298,12 @@
 
   .inventory-scanner-view {
     aspect-ratio: 3 / 5;
+  }
+
+  .inventory-scan-confirmation {
+    left: 12px;
+    right: 12px;
+    bottom: 14px;
   }
 
   .inventory-reader-panel {
