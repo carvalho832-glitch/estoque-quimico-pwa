@@ -3,7 +3,8 @@ import type { Product } from './types';
 import './inventory-review-improvements.css';
 
 const STORAGE_KEY = 'quimstock-temporary-inventory-v1';
-const BOUND_ATTRIBUTE = 'data-quimstock-review-improved';
+const EXPIRY_BOUND_ATTRIBUTE = 'data-quimstock-expiry-improved';
+const PRODUCT_BOUND_ATTRIBUTE = 'data-quimstock-product-improved';
 let saving = false;
 
 type InventoryRow = {
@@ -14,6 +15,7 @@ type InventoryRow = {
   expiryDate?: string;
   systemQuantity?: number;
   countedQuantity?: number;
+  registerProduct?: boolean;
 };
 
 type InventorySession = {
@@ -23,6 +25,11 @@ type InventorySession = {
 
 function normalize(value: string | undefined): string {
   return (value ?? '').trim().toUpperCase();
+}
+
+function isPlaceholderProductName(value: string | undefined): boolean {
+  const normalized = normalize(value);
+  return !normalized || normalized === 'PRODUTO NÃO CADASTRADO' || normalized === 'PRODUTO NAO CADASTRADO';
 }
 
 function createId(): string {
@@ -79,6 +86,111 @@ function isReviewMode(): boolean {
   return secondary.some((button) => /continuar leitura/i.test(button.textContent ?? ''));
 }
 
+function enhanceProductCells(): void {
+  if (!isReviewMode()) return;
+
+  const session = readSession();
+  const rows = document.querySelectorAll<HTMLTableRowElement>('.inventory-review-table tbody tr');
+
+  rows.forEach((rowElement) => {
+    const identity = rowIdentity(rowElement);
+    if (!identity) return;
+
+    const cell = rowElement.querySelector<HTMLTableCellElement>('td[data-label="Produto"]');
+    if (!cell || cell.hasAttribute(PRODUCT_BOUND_ATTRIBUTE)) return;
+
+    const sessionRow = findRow(session, identity.ecode, identity.batch);
+    if (!sessionRow) return;
+
+    const isUnregistered = rowElement.classList.contains('inventory-unregistered-row');
+    const hadPlaceholderName = isPlaceholderProductName(sessionRow.name);
+
+    cell.setAttribute(PRODUCT_BOUND_ATTRIBUTE, 'true');
+    cell.textContent = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'inventory-inline-product';
+    if (isUnregistered) wrapper.classList.add('unregistered');
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = hadPlaceholderName ? '' : (sessionRow.name ?? '');
+    input.placeholder = isUnregistered ? 'Nome do produto' : 'Produto';
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', `Produto do E-code ${identity.ecode}, lote ${identity.batch}`);
+
+    const hint = document.createElement('small');
+    if (isUnregistered) {
+      hint.textContent = sessionRow.registerProduct
+        ? 'Cadastro preparado ✓'
+        : 'Informe o nome para cadastrar';
+    } else {
+      hint.textContent = 'Toque para editar';
+    }
+
+    input.addEventListener('input', () => {
+      const latestSession = readSession();
+      const latestRow = findRow(latestSession, identity.ecode, identity.batch);
+      if (!latestRow) return;
+
+      latestRow.name = input.value.trim();
+      writeSession(latestSession);
+      wrapper.classList.toggle('missing', !input.value.trim());
+
+      if (isUnregistered) {
+        setText(hint, latestRow.registerProduct ? 'Cadastro preparado ✓' : 'Informe o nome para cadastrar');
+      } else {
+        setText(hint, input.value.trim() ? 'Nome será atualizado ✓' : 'Informe o nome do produto');
+      }
+      updateReviewNotice();
+    });
+
+    wrapper.append(input, hint);
+
+    if (isUnregistered && hadPlaceholderName) {
+      const registerButton = document.createElement('button');
+      registerButton.type = 'button';
+      registerButton.className = 'inventory-inline-register-product';
+      registerButton.textContent = sessionRow.registerProduct ? 'Cadastro preparado ✓' : 'Cadastrar produto';
+      registerButton.disabled = Boolean(sessionRow.registerProduct);
+
+      registerButton.addEventListener('click', () => {
+        const name = input.value.trim();
+        if (!name) {
+          wrapper.classList.add('missing');
+          setMessage(`Informe o nome do produto do E-code ${identity.ecode} antes de preparar o cadastro.`);
+          input.focus();
+          return;
+        }
+
+        const latestSession = readSession();
+        const latestRow = findRow(latestSession, identity.ecode, identity.batch);
+        if (!latestRow) return;
+
+        latestRow.name = name;
+        latestRow.registerProduct = true;
+        writeSession(latestSession);
+        wrapper.classList.remove('missing');
+        registerButton.textContent = 'Cadastro preparado ✓';
+        registerButton.disabled = true;
+        setText(hint, 'Será gravado ao atualizar estoque');
+        setMessage(`Produto “${name}” preparado para cadastro. Nada foi alterado no estoque oficial ainda.`);
+        updateReviewNotice();
+      });
+
+      wrapper.append(registerButton);
+    } else if (isUnregistered) {
+      const badge = document.createElement('span');
+      badge.className = 'inventory-inline-new-lot';
+      badge.textContent = 'Novo lote';
+      wrapper.append(badge);
+    }
+
+    if (!input.value.trim()) wrapper.classList.add('missing');
+    cell.append(wrapper);
+  });
+}
+
 function enhanceValidityCells(): void {
   if (!isReviewMode()) return;
 
@@ -90,12 +202,12 @@ function enhanceValidityCells(): void {
     if (!identity) return;
 
     const cell = rowElement.querySelector<HTMLTableCellElement>('td[data-label="Validade"]');
-    if (!cell || cell.hasAttribute(BOUND_ATTRIBUTE)) return;
+    if (!cell || cell.hasAttribute(EXPIRY_BOUND_ATTRIBUTE)) return;
 
     const sessionRow = findRow(session, identity.ecode, identity.batch);
     if (!sessionRow) return;
 
-    cell.setAttribute(BOUND_ATTRIBUTE, 'true');
+    cell.setAttribute(EXPIRY_BOUND_ATTRIBUTE, 'true');
     cell.textContent = '';
 
     const wrapper = document.createElement('label');
@@ -133,6 +245,7 @@ function updateReviewNotice(): void {
   const session = readSession();
   const rows = session.rows ?? [];
   const missingExpiry = rows.filter((row) => !row.expiryDate).length;
+  const unnamedProducts = rows.filter((row) => isPlaceholderProductName(row.name)).length;
   const unregisteredVisible = document.querySelectorAll('.inventory-unregistered-row').length;
 
   const notice = document.querySelector<HTMLElement>('.inventory-phase-notice');
@@ -140,27 +253,31 @@ function updateReviewNotice(): void {
     const title = notice.querySelector('strong');
     const copy = notice.querySelector('span');
 
-    if (missingExpiry > 0) {
+    if (unnamedProducts > 0) {
+      notice.classList.add('inventory-phase-warning');
+      setText(title, `${unnamedProducts} produto(s) precisam de identificação`);
+      setText(copy, 'Edite o nome diretamente na coluna Produto e use “Cadastrar produto” quando o material ainda não existir no QuimStock.');
+    } else if (missingExpiry > 0) {
       notice.classList.add('inventory-phase-warning');
       setText(title, `${missingExpiry} validade(s) precisam ser informadas`);
-      setText(copy, 'Preencha a data diretamente na coluna Validade. Lotes novos de um E-code já conhecido serão cadastrados ao atualizar.');
+      setText(copy, 'Preencha a data diretamente na coluna Validade antes de atualizar o estoque.');
     } else if (unregisteredVisible > 0) {
       notice.classList.add('inventory-phase-warning');
       setText(title, `${unregisteredVisible} lote(s) novo(s) prontos para cadastro`);
-      setText(copy, 'Ao atualizar, o QuimStock cadastrará automaticamente os novos lotes de materiais já conhecidos e aplicará a contagem.');
+      setText(copy, 'Os novos produtos/lotes preparados serão cadastrados somente quando você tocar em Atualizar estoque.');
     } else {
       notice.classList.remove('inventory-phase-warning');
       setText(title, 'Lista pronta para atualização');
-      setText(copy, 'Somente os lotes desta lista terão as quantidades e validades atualizadas.');
+      setText(copy, 'Nomes, quantidades e validades desta lista serão gravados ao confirmar.');
     }
   }
 
   const updateButton = document.querySelector<HTMLButtonElement>('.inventory-update-action');
   if (updateButton && !saving) {
     if (updateButton.disabled) updateButton.disabled = false;
-    const title = missingExpiry
-      ? 'Toque para ver quais validades ainda precisam ser preenchidas'
-      : 'Atualizar quantidades, validades e cadastrar novos lotes conhecidos';
+    let title = 'Atualizar nomes, quantidades, validades e novos cadastros';
+    if (unnamedProducts) title = 'Toque para localizar os produtos que ainda precisam de nome';
+    else if (missingExpiry) title = 'Toque para localizar as validades que ainda precisam ser preenchidas';
     if (updateButton.title !== title) updateButton.title = title;
   }
 }
@@ -168,17 +285,19 @@ function updateReviewNotice(): void {
 function buildUpdatedProducts(
   rows: InventoryRow[],
   products: Product[],
-): { productsToSave: Product[]; newLots: number; unknownRows: InventoryRow[] } {
+): { productsToSave: Product[]; newLots: number; newProducts: number; unknownRows: InventoryRow[] } {
   const now = new Date().toISOString();
   const productsToSave: Product[] = [];
   const unknownRows: InventoryRow[] = [];
   let newLots = 0;
+  let newProducts = 0;
 
   rows.forEach((row) => {
     const ecode = normalize(row.ecode);
     const batch = normalize(row.batch);
     const countedQuantity = Math.max(0, Number(row.countedQuantity) || 0);
     const expiryDate = row.expiryDate ?? '';
+    const editedName = row.name?.trim() ?? '';
     const exact = products.find(
       (product) => normalize(product.ecode) === ecode && normalize(product.batch) === batch,
     );
@@ -186,6 +305,7 @@ function buildUpdatedProducts(
     if (exact) {
       productsToSave.push({
         ...exact,
+        name: editedName || exact.name,
         quantity: countedQuantity,
         expiryDate,
         updatedAt: now,
@@ -194,31 +314,49 @@ function buildUpdatedProducts(
     }
 
     const template = products.find((product) => normalize(product.ecode) === ecode);
-    if (!template) {
-      unknownRows.push(row);
+    if (template) {
+      productsToSave.push({
+        id: createId(),
+        name: editedName || template.name,
+        ecode,
+        docmat: template.docmat,
+        batch,
+        expiryDate,
+        quantity: countedQuantity,
+        lowStockThreshold: template.lowStockThreshold,
+        location: template.location ?? '',
+        notes: '',
+        technicalSheet: template.technicalSheet,
+        availabilityStatus: 'stock',
+        createdAt: now,
+        updatedAt: now,
+      });
+      newLots += 1;
       return;
     }
 
-    productsToSave.push({
-      id: createId(),
-      name: template.name,
-      ecode,
-      docmat: template.docmat,
-      batch,
-      expiryDate,
-      quantity: countedQuantity,
-      lowStockThreshold: template.lowStockThreshold,
-      location: template.location ?? '',
-      notes: '',
-      technicalSheet: template.technicalSheet,
-      availabilityStatus: 'stock',
-      createdAt: now,
-      updatedAt: now,
-    });
-    newLots += 1;
+    if (row.registerProduct && editedName && !isPlaceholderProductName(editedName)) {
+      productsToSave.push({
+        id: createId(),
+        name: editedName,
+        ecode,
+        batch,
+        expiryDate,
+        quantity: countedQuantity,
+        location: '',
+        notes: 'Cadastrado durante a conferência de inventário.',
+        availabilityStatus: 'stock',
+        createdAt: now,
+        updatedAt: now,
+      });
+      newProducts += 1;
+      return;
+    }
+
+    unknownRows.push(row);
   });
 
-  return { productsToSave, newLots, unknownRows };
+  return { productsToSave, newLots, newProducts, unknownRows };
 }
 
 async function handleEnhancedUpdate(button: HTMLButtonElement): Promise<void> {
@@ -228,6 +366,15 @@ async function handleEnhancedUpdate(button: HTMLButtonElement): Promise<void> {
   const rows = Array.isArray(session.rows) ? session.rows : [];
   if (session.status !== 'review' || !rows.length) {
     setMessage('Finalize a leitura antes de atualizar o estoque.');
+    return;
+  }
+
+  const unnamedRows = rows.filter((row) => isPlaceholderProductName(row.name));
+  if (unnamedRows.length) {
+    setMessage(`Falta identificar ${unnamedRows.length} produto(s). Digite o nome diretamente na coluna Produto.`);
+    const firstMissing = document.querySelector<HTMLInputElement>('.inventory-inline-product.missing input');
+    firstMissing?.focus();
+    firstMissing?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
@@ -243,34 +390,40 @@ async function handleEnhancedUpdate(button: HTMLButtonElement): Promise<void> {
   const products = await listProducts();
   const prepared = buildUpdatedProducts(rows, products);
   if (prepared.unknownRows.length) {
-    const codes = [...new Set(prepared.unknownRows.map((row) => normalize(row.ecode)).filter(Boolean))];
-    setMessage(`Ainda existem ${prepared.unknownRows.length} lote(s) de E-code totalmente novo (${codes.join(', ')}). Cadastre esses materiais uma vez no QuimStock; depois os próximos lotes poderão ser criados pelo inventário.`);
+    setMessage(`Ainda existem ${prepared.unknownRows.length} produto(s) não cadastrado(s). Use “Cadastrar produto” na coluna Produto para prepará-los antes de atualizar.`);
+    const firstRegister = document.querySelector<HTMLButtonElement>('.inventory-inline-register-product:not(:disabled)');
+    firstRegister?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return;
   }
 
-  const existingCount = prepared.productsToSave.length - prepared.newLots;
-  const confirmation = prepared.newLots
-    ? `Atualizar ${existingCount} lote(s) existente(s) e cadastrar ${prepared.newLots} lote(s) novo(s) com as quantidades e validades conferidas?`
-    : `Atualizar ${existingCount} lote(s) com as quantidades e validades conferidas?`;
+  const existingCount = prepared.productsToSave.length - prepared.newLots - prepared.newProducts;
+  const parts = [`${existingCount} lote(s) existente(s)`];
+  if (prepared.newLots) parts.push(`${prepared.newLots} lote(s) novo(s)`);
+  if (prepared.newProducts) parts.push(`${prepared.newProducts} produto(s) novo(s)`);
 
+  const confirmation = `Atualizar ${parts.join(', ')} com os nomes, quantidades e validades conferidos?`;
   if (!window.confirm(confirmation)) return;
 
   saving = true;
   button.disabled = true;
   const previousLabel = button.textContent ?? 'Atualizar estoque';
   button.textContent = 'Atualizando...';
-  setMessage('Gravando quantidades, validades e novos lotes...');
+  setMessage('Gravando produtos, quantidades, validades e novos cadastros...');
 
   try {
     const result = await saveProductsBatch(prepared.productsToSave);
     window.localStorage.removeItem(STORAGE_KEY);
 
     if (result.syncState === 'synced') {
-      setMessage(`${result.saved} lote(s) atualizado(s) e sincronizado(s) com sucesso${prepared.newLots ? `, incluindo ${prepared.newLots} novo(s)` : ''}.`);
+      const extras = [
+        prepared.newLots ? `${prepared.newLots} lote(s) novo(s)` : '',
+        prepared.newProducts ? `${prepared.newProducts} produto(s) novo(s)` : '',
+      ].filter(Boolean).join(' e ');
+      setMessage(`${result.saved} item(ns) atualizado(s) e sincronizado(s) com sucesso${extras ? `, incluindo ${extras}` : ''}.`);
     } else if (result.syncState === 'pending') {
-      setMessage(`${result.saved} lote(s) salvo(s) neste aparelho. A sincronização com a nuvem ficou pendente e será retomada automaticamente.`);
+      setMessage(`${result.saved} item(ns) salvo(s) neste aparelho. A sincronização com a nuvem ficou pendente e será retomada automaticamente.`);
     } else {
-      setMessage(`${result.saved} lote(s) atualizado(s) no banco local com sucesso.`);
+      setMessage(`${result.saved} item(ns) atualizado(s) no banco local com sucesso.`);
     }
 
     window.dispatchEvent(new CustomEvent('quimstock:products-changed'));
@@ -285,6 +438,7 @@ async function handleEnhancedUpdate(button: HTMLButtonElement): Promise<void> {
 }
 
 function enhanceReview(): void {
+  enhanceProductCells();
   enhanceValidityCells();
   updateReviewNotice();
 }
