@@ -69,3 +69,8 @@ jobs:
             QuimStock-v1.1-unsigned.apk
             quimstock-release-tools/
           if-no-files-found: error
+
+      - name: Finalizar coleta temporária
+        run: |
+          echo "Artefato gerado. Esta falha é temporária apenas para localizar o run."
+          exit 1
