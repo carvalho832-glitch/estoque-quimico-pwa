@@ -1,5 +1,6 @@
 import { BrowserQRCodeReader } from '@zxing/browser';
 import { useEffect, useRef, useState } from 'react';
+import { parseInventoryQr } from '../lib/qr';
 import './InventoryQrScanner.css';
 
 type ScannerControls = {
@@ -11,7 +12,13 @@ type InventoryQrScannerProps = {
   onClose: () => void;
 };
 
+type ScanConfirmation = {
+  ecode: string;
+  batch: string;
+};
+
 const SAME_CODE_RELEASE_DELAY_MS = 950;
+const CONFIRMATION_VISIBLE_MS = 3000;
 
 type SafariWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext;
@@ -24,12 +31,26 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
   const blockedRawRef = useRef('');
   const lastResultAtRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const confirmationTimerRef = useRef<number | null>(null);
   const [status, setStatus] = useState('Abrindo câmera traseira...');
   const [error, setError] = useState('');
+  const [confirmation, setConfirmation] = useState<ScanConfirmation | null>(null);
 
   useEffect(() => {
     onDetectedRef.current = onDetected;
   }, [onDetected]);
+
+  function showScanConfirmation(nextConfirmation: ScanConfirmation) {
+    if (confirmationTimerRef.current !== null) {
+      window.clearTimeout(confirmationTimerRef.current);
+    }
+
+    setConfirmation(nextConfirmation);
+    confirmationTimerRef.current = window.setTimeout(() => {
+      setConfirmation(null);
+      confirmationTimerRef.current = null;
+    }, CONFIRMATION_VISIBLE_MS);
+  }
 
   function playConfirmationBeep() {
     const AudioContextClass = window.AudioContext || (window as SafariWindow).webkitAudioContext;
@@ -118,11 +139,24 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
             }
 
             blockedRawRef.current = rawValue;
-            onDetectedRef.current(rawValue);
-            playConfirmationBeep();
-            setStatus('Item contabilizado. Aponte para o próximo QR Code.');
 
-            if ('vibrate' in navigator) navigator.vibrate(60);
+            try {
+              const qr = parseInventoryQr(rawValue);
+              onDetectedRef.current(rawValue);
+              showScanConfirmation({ ecode: qr.ecode, batch: qr.batch });
+              playConfirmationBeep();
+              setStatus('Item contabilizado. Aponte para o próximo QR Code.');
+
+              if ('vibrate' in navigator) navigator.vibrate(60);
+            } catch (parseError) {
+              onDetectedRef.current(rawValue);
+              setConfirmation(null);
+              setStatus(
+                parseError instanceof Error
+                  ? `${parseError.message} Leitura não contabilizada.`
+                  : 'QR Code inválido. Leitura não contabilizada.',
+              );
+            }
           },
         );
 
@@ -153,6 +187,10 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
     return () => {
       mounted = false;
       window.clearInterval(releaseTimer);
+      if (confirmationTimerRef.current !== null) {
+        window.clearTimeout(confirmationTimerRef.current);
+        confirmationTimerRef.current = null;
+      }
       controlsRef.current?.stop();
       controlsRef.current = null;
       void audioContextRef.current?.close().catch(() => undefined);
@@ -161,6 +199,10 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
   }, []);
 
   function closeScanner() {
+    if (confirmationTimerRef.current !== null) {
+      window.clearTimeout(confirmationTimerRef.current);
+      confirmationTimerRef.current = null;
+    }
     controlsRef.current?.stop();
     controlsRef.current = null;
     void audioContextRef.current?.close().catch(() => undefined);
@@ -187,6 +229,18 @@ export default function InventoryQrScanner({ onDetected, onClose }: InventoryQrS
               <span className="inventory-scanner-line" />
             </div>
           </div>
+
+          {confirmation && (
+            <div className="inventory-scan-confirmation" role="status" aria-live="polite">
+              <span className="inventory-scan-confirmation-icon" aria-hidden="true">✓</span>
+              <div className="inventory-scan-confirmation-copy">
+                <strong>QR contabilizado</strong>
+                <span>E-code: <b>{confirmation.ecode}</b></span>
+                <span>Lote: <b>{confirmation.batch}</b></span>
+              </div>
+              <span className="inventory-scan-confirmation-unit">+1</span>
+            </div>
+          )}
         </div>
 
         <p className={error ? 'inventory-scanner-status inventory-scanner-error' : 'inventory-scanner-status'}>
