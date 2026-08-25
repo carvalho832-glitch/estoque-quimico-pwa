@@ -1,0 +1,243 @@
+.admin-reset-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 18px;
+  border: 1px solid #f0c6bf;
+  background: linear-gradient(135deg, #fff, #fff5f3);
+}
+
+.admin-reset-copy h2 {
+  margin: 4px 0 6px;
+  color: #6f2822;
+}
+
+.admin-reset-copy p {
+  margin: 0;
+  color: #6e7d87;
+}
+
+.admin-reset-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 48px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 13px;
+  padding: 13px 18px;
+  color: #fff;
+  background: linear-gradient(135deg, #9a3027, #bd4b40);
+  box-shadow: 0 10px 24px rgba(132, 45, 38, 0.2);
+  font-weight: 900;
+}
+
+.admin-reset-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(21, 12, 12, 0.74);
+  backdrop-filter: blur(10px);
+}
+
+.admin-reset-dialog {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  border: 1px solid rgba(255,255,255,0.76);
+  border-radius: 26px;
+  padding: 24px;
+  background: #fffaf9;
+  box-shadow: 0 30px 90px rgba(0,0,0,0.45);
+}
+
+.admin-reset-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-reset-header h2 {
+  margin: 5px 0 7px;
+  color: #5f241f;
+  font-size: clamp(1.55rem, 4vw, 2rem);
+}
+
+.admin-reset-header p {
+  margin: 0;
+  color: #7c6865;
+}
+
+.admin-reset-header > button {
+  display: grid;
+  place-items: center;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  color: #69352f;
+  background: #f4e3df;
+  font-weight: 900;
+}
+
+.admin-reset-warning {
+  display: grid;
+  gap: 5px;
+  margin: 20px 0;
+  padding: 15px 16px;
+  border: 1px solid #efc7aa;
+  border-radius: 15px;
+  color: #734120;
+  background: #fff2dc;
+}
+
+.admin-reset-warning strong,
+.admin-reset-warning span {
+  display: block;
+}
+
+.admin-reset-warning span {
+  color: #81634d;
+  font-size: 0.9rem;
+}
+
+.admin-reset-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-reset-form label {
+  display: grid;
+  gap: 7px;
+  color: #4c3532;
+  font-weight: 800;
+}
+
+.admin-reset-form input {
+  width: 100%;
+  min-height: 49px;
+  border: 1px solid #dcc8c4;
+  border-radius: 12px;
+  padding: 12px 13px;
+  color: #392925;
+  background: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.admin-reset-form input:focus {
+  border-color: #a7453b;
+  box-shadow: 0 0 0 3px rgba(167, 69, 59, 0.12);
+}
+
+.admin-reset-form small {
+  color: #7a6b67;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.admin-reset-validate,
+.admin-reset-danger,
+.admin-reset-cancel {
+  min-height: 49px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 15px;
+  font-weight: 900;
+}
+
+.admin-reset-validate {
+  color: #fff;
+  background: #244d64;
+}
+
+.admin-reset-final {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-reset-backup-ok {
+  display: grid;
+  gap: 4px;
+  padding: 14px 15px;
+  border: 1px solid #b9dfc5;
+  border-radius: 14px;
+  color: #245c39;
+  background: #eefaf1;
+}
+
+.admin-reset-backup-ok span {
+  color: #587365;
+  font-size: 0.9rem;
+}
+
+.admin-reset-danger {
+  color: #fff;
+  background: linear-gradient(135deg, #8f251e, #c1453a);
+  box-shadow: 0 10px 24px rgba(139, 37, 30, 0.24);
+}
+
+.admin-reset-cancel {
+  color: #354e5e;
+  background: #e8eff3;
+}
+
+.admin-reset-done {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px 18px;
+  border: 1px solid #b9dfc5;
+  border-radius: 17px;
+  color: #275d3a;
+  text-align: center;
+  background: #effaf2;
+}
+
+.admin-reset-done strong {
+  font-size: 1.2rem;
+}
+
+.admin-reset-message {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-radius: 11px;
+  color: #6e372f;
+  background: #f8e8e5;
+}
+
+.admin-reset-dialog button:disabled,
+.admin-reset-open:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+@media (max-width: 720px) {
+  .admin-reset-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-reset-open {
+    width: 100%;
+  }
+
+  .admin-reset-backdrop {
+    padding: 0;
+  }
+
+  .admin-reset-dialog {
+    width: 100%;
+    min-height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 20px 17px;
+  }
+}
