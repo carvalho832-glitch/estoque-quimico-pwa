@@ -11,6 +11,12 @@ import {
 } from 'firebase/firestore';
 import type { Product } from '../types';
 import { firebaseAuth, firebaseDb } from './firebase';
+import {
+  getLocalStockGeneration,
+  getOrCreateCloudStockGeneration,
+  setLocalStockGeneration,
+  STOCK_STATE_DOCUMENT_ID,
+} from './stock-generation';
 
 const DB_NAME = 'quimstock-db';
 const DB_VERSION = 1;
@@ -109,6 +115,24 @@ async function removeLocalProduct(id: string): Promise<void> {
   });
 }
 
+async function removeLocalProducts(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    ids.forEach((id) => store.delete(id));
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao excluir produtos do banco local.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('A limpeza local foi cancelada pelo banco.'));
+  });
+}
+
 async function replaceLocalProducts(products: Product[]): Promise<void> {
   const db = await openDatabase();
 
@@ -140,6 +164,14 @@ function cloudProductsCollection(userId: string) {
 function cloudProductDocument(userId: string, productId: string) {
   if (!firebaseDb) throw new Error('Firebase não configurado.');
   return doc(firebaseDb, 'users', userId, 'products', productId);
+}
+
+function snapshotProducts(snapshot: Awaited<ReturnType<typeof getDocs>>): Product[] {
+  return sortProducts(
+    snapshot.docs
+      .filter((item) => item.id !== STOCK_STATE_DOCUMENT_ID)
+      .map((item) => item.data() as Product),
+  );
 }
 
 export async function listProducts(): Promise<Product[]> {
@@ -197,17 +229,58 @@ export async function removeProduct(id: string): Promise<void> {
   }
 }
 
+export async function deleteProductsPermanently(ids: string[]): Promise<number> {
+  const uniqueIds = [...new Set(ids.filter((id) => id && id !== STOCK_STATE_DOCUMENT_ID))];
+  if (!uniqueIds.length) return 0;
+
+  const user = firebaseAuth?.currentUser;
+  if (!user || !firebaseDb) {
+    throw new Error('É necessário estar conectado à nuvem para fazer esta limpeza com segurança.');
+  }
+
+  for (let start = 0; start < uniqueIds.length; start += FIRESTORE_BATCH_LIMIT) {
+    const batch = writeBatch(firebaseDb);
+    uniqueIds.slice(start, start + FIRESTORE_BATCH_LIMIT).forEach((id) => {
+      batch.delete(cloudProductDocument(user.uid, id));
+    });
+    await batch.commit();
+  }
+
+  await removeLocalProducts(uniqueIds);
+  return uniqueIds.length;
+}
+
+export async function clearLocalProducts(): Promise<void> {
+  await replaceLocalProducts([]);
+}
+
 export async function migrateLocalProductsToCloud(userId: string): Promise<Product[]> {
   if (!firebaseDb) return listLocalProducts();
 
-  const [localProducts, cloudSnapshot] = await Promise.all([
+  const [localProducts, cloudSnapshot, stockGeneration] = await Promise.all([
     listLocalProducts(),
     getDocs(cloudProductsCollection(userId)),
+    getOrCreateCloudStockGeneration(userId),
   ]);
 
-  const merged = new Map<string, Product>();
-  const cloudProducts = cloudSnapshot.docs.map((snapshot) => snapshot.data() as Product);
+  const cloudProducts = snapshotProducts(cloudSnapshot);
+  const localGeneration = getLocalStockGeneration(userId);
 
+  // Se a nuvem já possui um inventário quando o controle de geração é criado,
+  // ela é adotada imediatamente como fonte oficial. Isso evita que o primeiro
+  // aparelho antigo a abrir a nova versão faça mais um merge indesejado.
+  const cloudAlreadyAuthoritative = stockGeneration.created && cloudProducts.length > 0;
+  const staleLocalGeneration = !stockGeneration.created && localGeneration !== stockGeneration.generation;
+
+  if (cloudAlreadyAuthoritative || staleLocalGeneration) {
+    await replaceLocalProducts(cloudProducts);
+    setLocalStockGeneration(userId, stockGeneration.generation);
+    return cloudProducts;
+  }
+
+  // A migração local só é mantida na primeira ativação quando a nuvem está
+  // realmente vazia, ou em funcionamento offline dentro da mesma geração.
+  const merged = new Map<string, Product>();
   cloudProducts.forEach((product) => merged.set(product.id, product));
 
   const batch = writeBatch(firebaseDb);
@@ -226,6 +299,7 @@ export async function migrateLocalProductsToCloud(userId: string): Promise<Produ
 
   const mergedProducts = sortProducts([...merged.values()]);
   await replaceLocalProducts(mergedProducts);
+  setLocalStockGeneration(userId, stockGeneration.generation);
   return mergedProducts;
 }
 
@@ -239,7 +313,11 @@ export function subscribeCloudProducts(
   return onSnapshot(
     cloudProductsCollection(userId),
     async (snapshot) => {
-      const products = sortProducts(snapshot.docs.map((item) => item.data() as Product));
+      const products = sortProducts(
+        snapshot.docs
+          .filter((item) => item.id !== STOCK_STATE_DOCUMENT_ID)
+          .map((item) => item.data() as Product),
+      );
       try {
         await replaceLocalProducts(products);
         onProducts(products);

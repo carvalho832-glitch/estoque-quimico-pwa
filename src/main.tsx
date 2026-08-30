@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import App from './App';
+import AdminCloudStockRepair from './components/AdminCloudStockRepair';
 import AdminResetStock from './components/AdminResetStock';
 import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
@@ -33,6 +34,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <>
           <App />
           <InventoryFeature />
+          <AdminCloudStockRepair />
           <AdminResetStock />
         </>
       )}

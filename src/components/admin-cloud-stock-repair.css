@@ -1,0 +1,175 @@
+.cloud-repair-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-color: #c9dce8;
+  background: linear-gradient(135deg, #f7fbfd, #ffffff);
+}
+.cloud-repair-panel h2 { margin: 4px 0 6px; color: var(--ink); }
+.cloud-repair-panel p { margin: 0; max-width: 720px; color: var(--muted); }
+.cloud-repair-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-height: 46px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #23506c, #387594);
+  font-weight: 800;
+  box-shadow: 0 10px 24px rgba(35, 80, 108, 0.18);
+}
+
+.cloud-repair-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1450;
+  display: grid;
+  place-items: center;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: rgba(7, 24, 35, 0.72);
+  backdrop-filter: blur(7px);
+}
+.cloud-repair-dialog {
+  width: min(760px, 100%);
+  max-height: min(900px, calc(100dvh - 28px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 24px;
+  padding: 20px;
+  background: #f8fafc;
+  box-shadow: 0 28px 90px rgba(5, 22, 33, 0.38);
+}
+.cloud-repair-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cloud-repair-header h2 { margin: 4px 0 5px; color: #173246; }
+.cloud-repair-header p { margin: 0; color: #6b7c88; }
+.cloud-repair-header > button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  color: #284a60;
+  background: #e5eef3;
+  font-size: 1.05rem;
+}
+
+.cloud-repair-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+  margin: 18px 0;
+}
+.cloud-repair-summary > div {
+  display: grid;
+  gap: 3px;
+  min-height: 82px;
+  align-content: center;
+  padding: 12px;
+  border: 1px solid #d8e2e8;
+  border-radius: 14px;
+  background: #fff;
+}
+.cloud-repair-summary strong { color: #1f465d; font-size: 1.35rem; }
+.cloud-repair-summary span { color: #6d7e89; font-size: 0.74rem; line-height: 1.2; }
+.cloud-repair-summary .keep { border-color: #bfe0d1; background: #f2fbf7; }
+.cloud-repair-summary .keep strong { color: #176b4c; }
+.cloud-repair-summary .remove { border-color: #efc5bf; background: #fff7f6; }
+.cloud-repair-summary .remove strong { color: #a43a2c; }
+
+.cloud-repair-cutoff,
+.cloud-repair-security > label { display: grid; gap: 7px; }
+.cloud-repair-cutoff { margin-bottom: 16px; padding: 15px; border: 1px solid #d1dfe7; border-radius: 16px; background: #fff; }
+.cloud-repair-cutoff > span,
+.cloud-repair-security label > span { color: #36566a; font-size: 0.84rem; font-weight: 800; }
+.cloud-repair-cutoff input,
+.cloud-repair-security input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #c9d7df;
+  border-radius: 11px;
+  padding: 11px 12px;
+  color: #173246;
+  background: #fbfcfd;
+  outline: none;
+}
+.cloud-repair-cutoff input:focus,
+.cloud-repair-security input:focus { border-color: #4e7d9a; box-shadow: 0 0 0 3px rgba(53, 92, 119, 0.12); }
+.cloud-repair-cutoff small,
+.cloud-repair-security small { color: #74848e; line-height: 1.35; }
+
+.cloud-repair-review { overflow: hidden; margin-bottom: 16px; border: 1px solid #d4e0e7; border-radius: 17px; background: #fff; }
+.cloud-repair-review-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 14px;
+  border-bottom: 1px solid #e1e8ec;
+  background: #f4f8fa;
+}
+.cloud-repair-review-title strong,
+.cloud-repair-review-title span { display: block; }
+.cloud-repair-review-title strong { color: #213f52; }
+.cloud-repair-review-title span { margin-top: 2px; color: #71808a; font-size: 0.77rem; }
+.cloud-repair-review-title button { border: 0; border-radius: 9px; padding: 9px 11px; color: #28546e; background: #e4eef4; font-weight: 750; }
+.cloud-repair-list { max-height: min(360px, 42dvh); overflow-y: auto; overscroll-behavior: contain; }
+.cloud-repair-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf1f3;
+  cursor: pointer;
+}
+.cloud-repair-item:last-child { border-bottom: 0; }
+.cloud-repair-item input { width: 20px; height: 20px; flex: 0 0 auto; margin-top: 1px; accent-color: #b13d2f; }
+.cloud-repair-item span { min-width: 0; }
+.cloud-repair-item strong { display: block; color: #1d3a4d; font-size: 0.9rem; }
+.cloud-repair-item small { display: block; margin-top: 4px; color: #75848d; line-height: 1.35; word-break: break-word; }
+.cloud-repair-empty { margin: 0; padding: 24px 14px; text-align: center; color: #72818b; }
+
+.cloud-repair-security { display: grid; gap: 12px; padding: 15px; border: 1px solid #edc5bf; border-radius: 17px; background: #fffaf9; }
+.cloud-repair-warning { display: grid; gap: 3px; padding: 11px 12px; border-radius: 12px; color: #704239; background: #fff0ed; }
+.cloud-repair-warning strong { color: #9f3528; }
+.cloud-repair-warning span { font-size: 0.8rem; line-height: 1.35; }
+.cloud-repair-danger {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 15px;
+  color: #fff;
+  background: linear-gradient(135deg, #a9372a, #c45343);
+  font-weight: 850;
+}
+.cloud-repair-message { margin: 14px 0 0; padding: 11px 13px; border-radius: 11px; color: #244e66; background: #e9f3f8; }
+
+@media (max-width: 720px) {
+  .cloud-repair-panel { align-items: stretch; flex-direction: column; }
+  .cloud-repair-open { width: 100%; }
+  .cloud-repair-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .cloud-repair-backdrop { padding: 0; }
+  .cloud-repair-dialog {
+    width: 100%;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+  .cloud-repair-header h2 { font-size: 1.2rem; }
+  .cloud-repair-summary { gap: 7px; }
+  .cloud-repair-summary > div { min-height: 74px; padding: 10px; }
+  .cloud-repair-review-title { align-items: stretch; flex-direction: column; }
+  .cloud-repair-review-title button { width: 100%; min-height: 42px; }
+  .cloud-repair-list { max-height: 38dvh; }
+}
