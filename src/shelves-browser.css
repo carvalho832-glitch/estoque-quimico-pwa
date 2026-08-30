@@ -1,0 +1,73 @@
+.shelves-launch-card {
+  width: 100%; min-height: 82px; display: flex; align-items: center; gap: 14px;
+  margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 18px;
+  text-align: left; color: var(--ink); background: rgba(255,255,255,.97);
+  box-shadow: 0 10px 28px rgba(28,55,73,.07);
+}
+.shelves-launch-card:focus-visible, .shelves-back:focus-visible, .shelves-close:focus-visible,
+.shelves-list-button:focus-visible, .shelves-product-button:focus-visible { outline: 3px solid rgba(53,92,119,.24); outline-offset: 2px; }
+.shelves-launch-icon { display:grid; place-items:center; width:54px; height:54px; flex:0 0 auto; border-radius:15px; background:#e9f0f4; font-size:1.65rem; }
+.shelves-launch-text { display:grid; gap:3px; min-width:0; flex:1; }
+.shelves-launch-text strong { color:var(--navy); font-size:1.06rem; }
+.shelves-launch-text small { color:var(--muted); font-size:.82rem; font-weight:600; }
+.shelves-launch-arrow { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; color:var(--steel); background:#f0f4f7; font-size:1.6rem; }
+
+.shelves-backdrop {
+  position:fixed; inset:0; z-index:1400; display:grid; place-items:center;
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  background:rgba(6,23,34,.72); backdrop-filter:blur(8px);
+}
+.shelves-modal {
+  width:min(560px,100%); max-height:calc(100dvh - max(24px,env(safe-area-inset-top)) - max(24px,env(safe-area-inset-bottom)));
+  display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(255,255,255,.7); border-radius:24px;
+  background:#f8fafb; box-shadow:0 28px 90px rgba(4,20,30,.38);
+}
+.shelves-header { display:grid; grid-template-columns:44px minmax(0,1fr) 44px; align-items:center; gap:10px; padding:15px; border-bottom:1px solid #dbe4ea; background:#fff; }
+.shelves-heading { min-width:0; text-align:center; }
+.shelves-kicker { display:block; color:#678091; font-size:.64rem; font-weight:850; letter-spacing:.13em; }
+.shelves-heading h2 { overflow:hidden; margin:3px 0 0; color:#17384d; font-size:1.18rem; line-height:1.2; text-overflow:ellipsis; white-space:nowrap; }
+.shelves-back, .shelves-close { display:grid; place-items:center; width:44px; height:44px; border:0; border-radius:50%; color:#284c62; background:#e8f0f4; font-size:1.5rem; }
+.shelves-back.is-hidden { visibility:hidden; pointer-events:none; }
+.shelves-body { min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:14px; padding-bottom:max(18px,env(safe-area-inset-bottom)); }
+.shelves-list { display:grid; gap:9px; }
+.shelves-list-button, .shelves-product-button { width:100%; min-height:54px; border:1px solid #d7e1e7; border-radius:14px; padding:13px 15px; text-align:left; color:#1e4055; background:#fff; box-shadow:0 6px 16px rgba(25,54,72,.04); }
+.shelves-list-button { position:relative; padding-right:44px; font-weight:800; }
+.shelves-list-button::after { content:'›'; position:absolute; right:16px; top:50%; transform:translateY(-50%); color:#7390a2; font-size:1.35rem; }
+.shelves-product-button { font-weight:760; line-height:1.25; }
+.shelves-empty { display:grid; place-items:center; gap:7px; min-height:220px; padding:28px 18px; text-align:center; color:#6c7e89; }
+.shelves-empty-icon { font-size:2.1rem; }
+.shelves-empty strong { color:#26485c; }
+.shelves-empty p { max-width:340px; margin:0; line-height:1.5; }
+.shelves-empty.error strong { color:var(--danger); }
+
+.shelves-details { display:grid; gap:14px; }
+.shelves-details-head { padding:16px; border:1px solid #cfdde5; border-radius:18px; background:linear-gradient(135deg,#edf4f8,#fff); }
+.shelves-details-head h3 { margin:5px 0 11px; color:#18394e; font-size:1.25rem; line-height:1.25; overflow-wrap:anywhere; }
+.shelves-detail-badges { display:flex; flex-wrap:wrap; gap:7px; }
+.shelves-badge { padding:6px 9px; border-radius:999px; font-size:.7rem; font-weight:800; }
+.shelves-badge.stock, .shelves-badge.expiry-valid { color:#166534; background:#dcfce7; }
+.shelves-badge.in-use, .shelves-badge.expiry-warning { color:#854d0e; background:#fef3c7; }
+.shelves-badge.expiry-critical { color:#9a3412; background:#ffedd5; }
+.shelves-badge.expiry-expired { color:#991b1b; background:#fee2e2; }
+.shelves-badge.expiry-unknown { color:#475569; background:#e2e8f0; }
+.shelves-detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:0; }
+.shelves-detail-row { min-width:0; padding:11px; border:1px solid #dce5ea; border-radius:12px; background:#fff; }
+.shelves-detail-row dt { color:#71838f; font-size:.65rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
+.shelves-detail-row dd { margin:4px 0 0; color:#23475c; font-weight:760; line-height:1.3; overflow-wrap:anywhere; }
+.shelves-detail-section { padding-top:13px; border-top:1px solid #dce5ea; }
+.shelves-detail-section h4 { margin:0 0 10px; color:#294b60; font-size:.88rem; }
+.shelves-detail-notes { margin:0; color:#586f7e; line-height:1.5; white-space:pre-wrap; overflow-wrap:anywhere; }
+.shelves-detail-meta { display:grid; gap:3px; color:#7a8b95; font-size:.72rem; }
+
+@media (max-width:520px) {
+  .shelves-launch-card { min-height:76px; margin-bottom:14px; padding:12px 13px; border-radius:16px; }
+  .shelves-launch-icon { width:48px; height:48px; border-radius:13px; font-size:1.45rem; }
+  .shelves-launch-text small { font-size:.76rem; }
+  .shelves-backdrop { align-items:end; padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); }
+  .shelves-modal { width:100%; max-height:calc(100dvh - max(16px,env(safe-area-inset-top)) - max(16px,env(safe-area-inset-bottom))); border-radius:22px; }
+  .shelves-header { grid-template-columns:42px minmax(0,1fr) 42px; padding:12px; }
+  .shelves-back, .shelves-close { width:42px; height:42px; }
+  .shelves-body { padding:11px; padding-bottom:max(16px,env(safe-area-inset-bottom)); }
+  .shelves-list-button, .shelves-product-button { min-height:56px; padding:14px; }
+  .shelves-detail-grid { grid-template-columns:1fr; }
+}

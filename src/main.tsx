@@ -11,6 +11,7 @@ import './dashboard-usage.css';
 import './attention-alert.css';
 import './product-card-modal.css';
 import './attention-alert';
+import './shelves-browser';
 import './in-use-alert';
 import './pdf-responsibles';
 import './edit-product-modal-fix';
