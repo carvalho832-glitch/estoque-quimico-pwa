@@ -3,7 +3,7 @@ import { firebaseDb } from './firebase';
 
 const LOCAL_GENERATION_PREFIX = 'quimstock-stock-generation-v1:';
 const BOOTSTRAP_GENERATION = 'legacy-v1';
-export const STOCK_STATE_DOCUMENT_ID = '__quimstock_stock_state__';
+export const STOCK_STATE_DOCUMENT_ID = 'quimstock-stock-state';
 
 export type CloudStockGeneration = {
   generation: string;
@@ -46,7 +46,7 @@ export async function getOrCreateCloudStockGeneration(userId: string): Promise<C
 
   const now = new Date().toISOString();
   await setDoc(reference, {
-    __quimstockMeta: 'stock-state',
+    quimstockMeta: 'stock-state',
     generation: BOOTSTRAP_GENERATION,
     schemaVersion: 1,
     createdAt: now,
@@ -63,7 +63,7 @@ export async function rotateStockGeneration(userId: string): Promise<string> {
   const now = new Date().toISOString();
 
   await setDoc(stockStateDocument(userId), {
-    __quimstockMeta: 'stock-state',
+    quimstockMeta: 'stock-state',
     generation,
     schemaVersion: 1,
     resetAt: now,
