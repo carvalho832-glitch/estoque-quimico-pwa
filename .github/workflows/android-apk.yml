@@ -57,7 +57,7 @@ jobs:
           set -e
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           mkdir -p quimstock-release-tools/lib
-          cp android/app/build/outputs/apk/release/app-release-unsigned.apk QuimStock-v1.3.1-unsigned.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk QuimStock-v1.3.2-unsigned.apk
           cp "$BUILD_TOOLS/apksigner" quimstock-release-tools/apksigner
           cp "$BUILD_TOOLS/zipalign" quimstock-release-tools/zipalign
           cp "$BUILD_TOOLS/lib/apksigner.jar" quimstock-release-tools/lib/apksigner.jar
@@ -66,8 +66,8 @@ jobs:
       - name: Disponibilizar release para assinatura
         uses: actions/upload-artifact@v5
         with:
-          name: QuimStock-v1.3.1-release
+          name: QuimStock-v1.3.2-release
           path: |
-            QuimStock-v1.3.1-unsigned.apk
+            QuimStock-v1.3.2-unsigned.apk
             quimstock-release-tools/
           if-no-files-found: error
