@@ -1,0 +1,57 @@
+body .cloud-session-chip,
+body .cloud-session-compact {
+  left: auto;
+  right: max(12px, env(safe-area-inset-right));
+  top: max(72px, calc(env(safe-area-inset-top) + 12px));
+  bottom: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body .cloud-session-chip {
+  width: min(390px, calc(100vw - 24px));
+  cursor: grab;
+}
+
+body .cloud-session-compact {
+  cursor: grab;
+}
+
+body .cloud-session-chip[data-draggable='true']::before {
+  content: '⠿';
+  align-self: center;
+  margin-right: -3px;
+  color: #8ca39f;
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
+body .cloud-session-chip[data-draggable='true'] {
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+}
+
+body .cloud-session-dragging {
+  cursor: grabbing !important;
+  transition: none !important;
+  animation: none !important;
+  opacity: 0.94;
+  box-shadow: 0 16px 40px rgba(20, 60, 54, 0.28);
+}
+
+@media (max-width: 480px) {
+  body .cloud-session-chip {
+    left: auto;
+    right: max(10px, env(safe-area-inset-right));
+    top: max(66px, calc(env(safe-area-inset-top) + 10px));
+    bottom: auto;
+    width: min(350px, calc(100vw - 20px));
+  }
+
+  body .cloud-session-compact {
+    left: auto;
+    right: max(10px, env(safe-area-inset-right));
+    top: max(66px, calc(env(safe-area-inset-top) + 10px));
+    bottom: auto;
+  }
+}
