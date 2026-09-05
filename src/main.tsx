@@ -9,6 +9,7 @@ import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
 import Dashboard from './Dashboard';
 import './styles.css';
+import './android-fullscreen.css';
 import './dashboard-usage.css';
 import './attention-alert.css';
 import './product-card-modal.css';
