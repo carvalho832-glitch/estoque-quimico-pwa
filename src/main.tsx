@@ -12,6 +12,7 @@ import './styles.css';
 import './dashboard-usage.css';
 import './attention-alert.css';
 import './product-card-modal.css';
+import './cloud-session-floating.css';
 import './attention-alert';
 import './shelves-browser';
 import './in-use-alert';
