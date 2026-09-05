@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import type { Product } from '../types';
 import { firebaseAuth, firebaseDb } from './firebase';
+import { createCanonicalProductId, productIdentityKey } from './product-identity';
 import {
   getLocalStockGeneration,
   getOrCreateCloudStockGeneration,
@@ -19,7 +20,8 @@ import {
 
 const LEGACY_DB_NAME = 'quimstock-db';
 const USER_DB_PREFIX = 'quimstock-user-db-v2:';
-const DB_VERSION = 1;
+const LEGACY_DB_VERSION = 1;
+const USER_DB_VERSION = 2;
 const PRODUCTS_STORE = 'products';
 const PENDING_STORE = 'pendingOperations';
 const FIRESTORE_BATCH_LIMIT = 450;
@@ -46,6 +48,11 @@ type PendingOperation = {
   queuedAt: string;
 };
 
+type ResolvedProduct = {
+  product: Product;
+  previous?: Product;
+};
+
 function userDatabaseName(userId: string): string {
   return `${USER_DB_PREFIX}${userId}`;
 }
@@ -57,9 +64,9 @@ function createProductsStore(db: IDBDatabase): void {
   store.createIndex('updatedAt', 'updatedAt', { unique: false });
 }
 
-function openDatabase(name: string, includePending: boolean): Promise<IDBDatabase> {
+function openDatabase(name: string, version: number, includePending: boolean): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(name, DB_VERSION);
+    const request = indexedDB.open(name, version);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -75,11 +82,11 @@ function openDatabase(name: string, includePending: boolean): Promise<IDBDatabas
 }
 
 function openLegacyDatabase(): Promise<IDBDatabase> {
-  return openDatabase(LEGACY_DB_NAME, false);
+  return openDatabase(LEGACY_DB_NAME, LEGACY_DB_VERSION, false);
 }
 
 function openUserDatabase(userId: string): Promise<IDBDatabase> {
-  return openDatabase(userDatabaseName(userId), true);
+  return openDatabase(userDatabaseName(userId), USER_DB_VERSION, true);
 }
 
 function sortProducts(products: Product[]): Product[] {
@@ -115,16 +122,45 @@ async function listUserLocalProducts(userId: string): Promise<Product[]> {
   return listProductsFromDatabase(() => openUserDatabase(userId));
 }
 
+function resolveProduct(product: Product, existingProducts: Product[]): ResolvedProduct {
+  const direct = existingProducts.find((item) => item.id === product.id);
+  if (direct) return { product, previous: direct };
+
+  const identity = productIdentityKey(product);
+  const equivalent = existingProducts.find((item) => productIdentityKey(item) === identity);
+  if (equivalent) {
+    return {
+      previous: equivalent,
+      product: {
+        ...product,
+        id: equivalent.id,
+        createdAt: equivalent.createdAt,
+      },
+    };
+  }
+
+  return {
+    product: {
+      ...product,
+      id: createCanonicalProductId(product),
+    },
+  };
+}
+
 async function saveLegacyLocalProduct(product: Product): Promise<IDBValidKey> {
   const db = await openLegacyDatabase();
 
   return new Promise((resolve, reject) => {
     const transaction = db.transaction(PRODUCTS_STORE, 'readwrite');
     const request = transaction.objectStore(PRODUCTS_STORE).put(product);
+    let savedKey: IDBValidKey = product.id;
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => { savedKey = request.result; };
     request.onerror = () => reject(request.error ?? new Error('Falha ao salvar no banco local.'));
-    transaction.oncomplete = () => db.close();
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(savedKey);
+    };
     transaction.onerror = () => reject(transaction.error ?? new Error('Falha na transação local.'));
   });
 }
@@ -139,6 +175,7 @@ async function saveUserProductAndQueue(
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([PRODUCTS_STORE, PENDING_STORE], 'readwrite');
     const productRequest = transaction.objectStore(PRODUCTS_STORE).put(product);
+    let savedKey: IDBValidKey = product.id;
     const operation: PendingOperation = {
       id: product.id,
       kind: 'upsert',
@@ -149,9 +186,12 @@ async function saveUserProductAndQueue(
     };
     transaction.objectStore(PENDING_STORE).put(operation);
 
-    productRequest.onsuccess = () => resolve(productRequest.result);
+    productRequest.onsuccess = () => { savedKey = productRequest.result; };
     productRequest.onerror = () => reject(productRequest.error ?? new Error('Falha ao salvar no banco local.'));
-    transaction.oncomplete = () => db.close();
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(savedKey);
+    };
     transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao registrar a alteração local.'));
     transaction.onabort = () => reject(transaction.error ?? new Error('A alteração local foi cancelada.'));
   });
@@ -407,8 +447,9 @@ export async function saveProduct(product: Product): Promise<IDBValidKey> {
   const user = firebaseAuth?.currentUser;
   if (!user || !firebaseDb) return saveLegacyLocalProduct(product);
 
-  const previous = (await listUserLocalProducts(user.uid)).find((item) => item.id === product.id);
-  const localKey = await saveUserProductAndQueue(user.uid, product, previous);
+  const existingProducts = await listUserLocalProducts(user.uid);
+  const resolved = resolveProduct(product, existingProducts);
+  const localKey = await saveUserProductAndQueue(user.uid, resolved.product, resolved.previous);
 
   if (navigator.onLine) {
     try {
@@ -422,16 +463,31 @@ export async function saveProduct(product: Product): Promise<IDBValidKey> {
 }
 
 export async function saveProductsBatch(products: Product[]): Promise<BatchSaveResult> {
-  const uniqueProducts = [...new Map(products.map((product) => [product.id, product])).values()];
-  if (!uniqueProducts.length) return { saved: 0, syncState: 'local' };
+  if (!products.length) return { saved: 0, syncState: 'local' };
 
   const user = firebaseAuth?.currentUser;
   if (!user || !firebaseDb) {
+    const uniqueProducts = [...new Map(products.map((product) => [product.id, product])).values()];
     for (const product of uniqueProducts) await saveLegacyLocalProduct(product);
     return { saved: uniqueProducts.length, syncState: 'local' };
   }
 
-  const previousById = new Map((await listUserLocalProducts(user.uid)).map((product) => [product.id, product]));
+  const existingProducts = await listUserLocalProducts(user.uid);
+  const workingProducts = [...existingProducts];
+  const resolvedProducts: Product[] = [];
+  const previousById = new Map<string, Product>();
+
+  products.forEach((candidate) => {
+    const resolved = resolveProduct(candidate, workingProducts);
+    resolvedProducts.push(resolved.product);
+    if (resolved.previous) previousById.set(resolved.product.id, resolved.previous);
+
+    const existingIndex = workingProducts.findIndex((item) => item.id === resolved.product.id);
+    if (existingIndex >= 0) workingProducts[existingIndex] = resolved.product;
+    else workingProducts.push(resolved.product);
+  });
+
+  const uniqueProducts = [...new Map(resolvedProducts.map((product) => [product.id, product])).values()];
   await saveUserProductsAndQueue(user.uid, uniqueProducts, previousById);
 
   if (!navigator.onLine) return { saved: uniqueProducts.length, syncState: 'pending' };
