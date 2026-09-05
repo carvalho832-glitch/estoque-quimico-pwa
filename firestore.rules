@@ -3,8 +3,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId}/products/{productId} {
-      allow read, create, update, delete: if request.auth != null
-        && request.auth.uid == userId;
+      function isOwner() {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isStockStateDocument() {
+        return productId == 'quimstock-stock-state';
+      }
+
+      function usesCurrentSyncProtocol() {
+        return request.resource.data._syncProtocol == 2;
+      }
+
+      allow read: if isOwner();
+      allow create, update: if isOwner()
+        && (isStockStateDocument() || usesCurrentSyncProtocol());
+      allow delete: if isOwner();
     }
   }
 }

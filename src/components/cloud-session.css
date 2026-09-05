@@ -13,6 +13,13 @@
   gap: 12px;
   align-content: center;
   color: #184943;
+  text-align: center;
+}
+
+.cloud-loading-screen small {
+  max-width: 420px;
+  color: #6d827e;
+  line-height: 1.45;
 }
 
 .cloud-spinner {
@@ -151,6 +158,13 @@
   border: 0;
   border-radius: 12px;
   font-weight: 800;
+  cursor: pointer;
+}
+
+.cloud-auth-submit:disabled,
+.cloud-reset-button:disabled {
+  opacity: 0.62;
+  cursor: wait;
 }
 
 .cloud-auth-submit {
@@ -169,6 +183,10 @@
   background: #eef7f5;
 }
 
+.cloud-full-button {
+  width: 100%;
+}
+
 .cloud-auth-message {
   margin: 13px 0 0 !important;
   padding: 10px 12px;
@@ -176,6 +194,41 @@
   color: #0f5f57 !important;
   background: #e6f7f3;
   font-size: 0.82rem;
+}
+
+.cloud-import-card {
+  width: min(520px, 100%);
+}
+
+.cloud-import-warning {
+  display: grid;
+  gap: 5px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #f0d596;
+  border-radius: 14px;
+  color: #6c4b05;
+  background: #fff9e8;
+}
+
+.cloud-import-warning strong {
+  font-size: 0.86rem;
+}
+
+.cloud-import-warning span {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.cloud-import-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.cloud-import-actions .cloud-auth-submit,
+.cloud-import-actions .cloud-reset-button {
+  width: 100%;
+  margin-top: 0;
 }
 
 .cloud-session-chip {

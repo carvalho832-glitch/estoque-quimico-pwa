@@ -7,7 +7,11 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { migrateLocalProductsToCloud, subscribeCloudProducts } from '../lib/db';
+import {
+  bootstrapCloudProducts,
+  importLegacyProductsToCloud,
+  subscribeCloudProducts,
+} from '../lib/db';
 import { firebaseAuth, firebaseConfigured } from '../lib/firebase';
 import './cloud-session.css';
 
@@ -17,6 +21,20 @@ type Props = {
 
 type AuthMode = 'login' | 'register';
 type SyncState = 'local' | 'connecting' | 'synced' | 'offline' | 'error';
+
+const IMPORT_DECISION_PREFIX = 'quimstock-local-import-decision-v1:';
+
+function importDecisionKey(userId: string): string {
+  return `${IMPORT_DECISION_PREFIX}${userId}`;
+}
+
+function hasImportDecision(userId: string): boolean {
+  return Boolean(window.localStorage.getItem(importDecisionKey(userId)));
+}
+
+function setImportDecision(userId: string, decision: 'cloud' | 'imported'): void {
+  window.localStorage.setItem(importDecisionKey(userId), decision);
+}
 
 function authErrorMessage(error: unknown): string {
   const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
@@ -45,6 +63,11 @@ export default function CloudSession({ children }: Props) {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [syncState, setSyncState] = useState<SyncState>(firebaseConfigured ? 'connecting' : 'local');
+  const [sessionReady, setSessionReady] = useState(!firebaseConfigured);
+  const [syncError, setSyncError] = useState('');
+  const [localImportCount, setLocalImportCount] = useState(0);
+  const [importingLocal, setImportingLocal] = useState(false);
+  const [syncRevision, setSyncRevision] = useState(0);
   const [dataRevision, setDataRevision] = useState(0);
   const [sessionExpanded, setSessionExpanded] = useState(true);
 
@@ -53,21 +76,26 @@ export default function CloudSession({ children }: Props) {
     if (!firebaseConfigured || !auth) {
       setAuthLoading(false);
       setSyncState('local');
+      setSessionReady(true);
       return;
     }
 
     return onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      setSyncState(currentUser ? 'connecting' : 'local');
+      setSyncState(currentUser ? (navigator.onLine ? 'connecting' : 'offline') : 'local');
+      setSessionReady(!currentUser || !navigator.onLine);
+      setSyncError('');
+      setLocalImportCount(0);
     });
   }, []);
 
   useEffect(() => {
-    if (!user || !firebaseConfigured) return;
+    if (!user || !firebaseConfigured) return undefined;
 
     const userId = user.uid;
     let active = true;
+    let connectSequence = 0;
     let unsubscribe: () => void = () => undefined;
 
     function notifyProductsChanged() {
@@ -76,44 +104,102 @@ export default function CloudSession({ children }: Props) {
     }
 
     async function connectCloud() {
-      setSyncState(navigator.onLine ? 'connecting' : 'offline');
-      try {
-        await migrateLocalProductsToCloud(userId);
-        if (!active) return;
+      const sequence = ++connectSequence;
+      unsubscribe();
+      unsubscribe = () => undefined;
+
+      if (!navigator.onLine) {
+        setSyncState('offline');
+        setSyncError('');
+        setSessionReady(true);
         notifyProductsChanged();
+        return;
+      }
+
+      setSyncState('connecting');
+      setSessionReady(false);
+      setSyncError('');
+
+      try {
+        const result = await bootstrapCloudProducts(userId);
+        if (!active || sequence !== connectSequence) return;
+
+        if (result.cloudEmpty && result.legacyLocalCount > 0 && !hasImportDecision(userId)) {
+          setLocalImportCount(result.legacyLocalCount);
+          setSessionReady(false);
+          return;
+        }
+
+        if (!result.cloudEmpty && !hasImportDecision(userId)) {
+          setImportDecision(userId, 'cloud');
+        }
+
+        setLocalImportCount(0);
+        setSessionReady(true);
+        setSyncState('synced');
+        notifyProductsChanged();
+
+        if (result.discardedStaleUpdates > 0) {
+          console.warn(
+            `${result.discardedStaleUpdates} alteração(ões) offline de produto(s) já excluído(s) na nuvem foram descartadas com segurança.`,
+          );
+        }
 
         unsubscribe = subscribeCloudProducts(
           userId,
           () => {
-            if (!active) return;
+            if (!active || sequence !== connectSequence) return;
             setSyncState(navigator.onLine ? 'synced' : 'offline');
             notifyProductsChanged();
           },
           (error) => {
             console.error(error);
-            if (active) setSyncState(navigator.onLine ? 'error' : 'offline');
+            if (!active || sequence !== connectSequence) return;
+            setSyncState(navigator.onLine ? 'error' : 'offline');
+            if (navigator.onLine) setSyncError('A conexão com o estoque oficial foi interrompida. Tente sincronizar novamente.');
           },
         );
       } catch (error) {
         console.error(error);
-        if (active) setSyncState(navigator.onLine ? 'error' : 'offline');
+        if (!active || sequence !== connectSequence) return;
+        setSyncState(navigator.onLine ? 'error' : 'offline');
+        setSessionReady(!navigator.onLine);
+        setSyncError(
+          navigator.onLine
+            ? (error instanceof Error ? error.message : 'Não foi possível carregar o estoque oficial da nuvem.')
+            : '',
+        );
       }
     }
 
     void connectCloud();
 
-    const handleOnline = () => setSyncState('connecting');
-    const handleOffline = () => setSyncState('offline');
+    const handleOnline = () => {
+      if (!active) return;
+      void connectCloud();
+    };
+    const handleOffline = () => {
+      if (!active) return;
+      connectSequence += 1;
+      unsubscribe();
+      unsubscribe = () => undefined;
+      setSyncState('offline');
+      setSyncError('');
+      setSessionReady(true);
+      notifyProductsChanged();
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
     return () => {
       active = false;
+      connectSequence += 1;
       unsubscribe();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [user]);
+  }, [user, syncRevision]);
 
   useEffect(() => {
     if (syncState !== 'synced') {
@@ -172,6 +258,30 @@ export default function CloudSession({ children }: Props) {
     await signOut(auth);
   }
 
+  function handleUseCloud() {
+    if (!user) return;
+    setImportDecision(user.uid, 'cloud');
+    setLocalImportCount(0);
+    setSyncRevision((current) => current + 1);
+  }
+
+  async function handleImportLocal() {
+    if (!user || importingLocal) return;
+    setImportingLocal(true);
+    setSyncError('');
+    try {
+      await importLegacyProductsToCloud(user.uid);
+      setImportDecision(user.uid, 'imported');
+      setLocalImportCount(0);
+      setSyncRevision((current) => current + 1);
+    } catch (error) {
+      console.error(error);
+      setSyncError(error instanceof Error ? error.message : 'Não foi possível importar os dados locais.');
+    } finally {
+      setImportingLocal(false);
+    }
+  }
+
   if (authLoading) {
     return (
       <div className="cloud-loading-screen">
@@ -223,7 +333,7 @@ export default function CloudSession({ children }: Props) {
               />
             </label>
             <button className="cloud-auth-submit" type="submit" disabled={submitting}>
-              {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta e sincronizar'}
+              {submitting ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
             </button>
           </form>
 
@@ -236,6 +346,76 @@ export default function CloudSession({ children }: Props) {
           {message && <p className="cloud-auth-message" role="status">{message}</p>}
         </section>
       </main>
+    );
+  }
+
+  if (user && localImportCount > 0) {
+    return (
+      <main className="cloud-auth-screen">
+        <section className="cloud-auth-card cloud-import-card">
+          <div className="cloud-auth-brand">
+            <span>QS</span>
+            <div>
+              <strong>QuimStock</strong>
+              <small>Proteção contra duplicações</small>
+            </div>
+          </div>
+          <span className="cloud-auth-kicker">DADOS LOCAIS ENCONTRADOS</span>
+          <h1>Qual estoque deve ser usado?</h1>
+          <p>
+            Este aparelho possui {localImportCount} registro(s) de uma versão anterior, enquanto a conta na nuvem está vazia.
+            Nada será enviado automaticamente.
+          </p>
+          <div className="cloud-import-warning">
+            <strong>Opção segura recomendada</strong>
+            <span>Use o estoque da nuvem. Importe os dados locais somente se esta for realmente uma conta nova e esses registros forem o estoque correto.</span>
+          </div>
+          <div className="cloud-import-actions">
+            <button className="cloud-auth-submit" type="button" onClick={handleUseCloud} disabled={importingLocal}>
+              Usar estoque da nuvem
+            </button>
+            <button className="cloud-reset-button" type="button" onClick={() => void handleImportLocal()} disabled={importingLocal}>
+              {importingLocal ? 'Importando...' : `Importar ${localImportCount} dado(s) locais`}
+            </button>
+          </div>
+          {syncError && <p className="cloud-auth-message" role="alert">{syncError}</p>}
+        </section>
+      </main>
+    );
+  }
+
+  if (user && !sessionReady) {
+    if (syncState === 'error') {
+      return (
+        <main className="cloud-auth-screen">
+          <section className="cloud-auth-card">
+            <div className="cloud-auth-brand">
+              <span>QS</span>
+              <div>
+                <strong>QuimStock</strong>
+                <small>Estoque oficial protegido</small>
+              </div>
+            </div>
+            <span className="cloud-auth-kicker">SINCRONIZAÇÃO INTERROMPIDA</span>
+            <h1>Não foi possível confirmar a nuvem</h1>
+            <p>{syncError || 'O QuimStock não abriu um cache antigo porque a conexão com o estoque oficial não foi confirmada.'}</p>
+            <button className="cloud-auth-submit cloud-full-button" type="button" onClick={() => setSyncRevision((current) => current + 1)}>
+              Tentar sincronizar novamente
+            </button>
+            <button className="cloud-reset-button" type="button" onClick={() => void handleSignOut()}>
+              Sair da conta
+            </button>
+          </section>
+        </main>
+      );
+    }
+
+    return (
+      <div className="cloud-loading-screen">
+        <div className="cloud-spinner" />
+        <strong>Carregando o estoque oficial...</strong>
+        <small>O cache deste aparelho só será liberado depois da conferência com a nuvem.</small>
+      </div>
     );
   }
 
