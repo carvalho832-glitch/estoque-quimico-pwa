@@ -1,3 +1,5 @@
+export {};
+
 const POSITION_KEY = 'quimstock-cloud-widget-position-v1';
 const DRAG_THRESHOLD = 6;
 const EDGE_GAP = 10;
