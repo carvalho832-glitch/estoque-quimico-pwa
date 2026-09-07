@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "test": "node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\" && tsc src/services/NotificationRules.ts --target ES2022 --module ES2022 --moduleResolution Bundler --outDir .test-dist --skipLibCheck && node --test tests/notification-rules.test.mjs && node -e \"require('node:fs').rmSync('.test-dist',{recursive:true,force:true})\"",
     "android:sync": "npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "preview": "vite preview"
