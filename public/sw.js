@@ -78,16 +78,17 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || './', self.location.href).href;
+  const targetUrl = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  const scopeUrl = self.registration.scope;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
-      const sameOriginClient = clients.find((client) => new URL(client.url).origin === self.location.origin);
-      if (sameOriginClient) {
-        if ('navigate' in sameOriginClient && sameOriginClient.url !== targetUrl) {
-          await sameOriginClient.navigate(targetUrl);
+      const quimStockClient = clients.find((client) => client.url.startsWith(scopeUrl));
+      if (quimStockClient) {
+        if ('navigate' in quimStockClient && quimStockClient.url !== targetUrl) {
+          await quimStockClient.navigate(targetUrl);
         }
-        return sameOriginClient.focus();
+        return quimStockClient.focus();
       }
       return self.clients.openWindow(targetUrl);
     }),
