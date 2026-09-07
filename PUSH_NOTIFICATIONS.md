@@ -6,15 +6,33 @@ A engrenagem discreta no canto superior direito abre a autenticação da Área A
 
 As preferências administrativas ficam em armazenamento local versionado (`settingsVersion: 1`) e podem ser exportadas/importadas em JSON. A exportação de configurações não contém o PIN nem o hash do PIN.
 
+Como esta etapa não adiciona um servidor de autenticação administrativa, o PIN funciona como proteção da área administrativa do cliente. Limpar completamente os dados do site remove também a configuração local do PIN e das preferências; proteção administrativa resistente à adulteração do cliente exigiria validação no backend.
+
 ## Serviços
 
 A implementação é separada em:
 
 - `SettingsService`: defaults, persistência, importação e exportação das preferências.
 - `PinService`: criação e validação do hash do PIN e troca de PIN.
-- `NotificationService`: conteúdo das notificações, envio pelo sistema operacional e deduplicação.
+- `NotificationRules`: regras puras e testáveis de validade, chaves de deduplicação e transição de estoque baixo.
+- `NotificationService`: conteúdo das notificações, envio pelo sistema operacional e histórico interno de deduplicação.
 - `NotificationScheduler`: horários de verificação, validade e estoque baixo.
 - `PushService`: permissão, token FCM, renovação e ponte de mensagens recebidas com o app aberto.
+
+## Eventos conectados
+
+Os eventos já ligados ao comportamento real do QuimStock são:
+
+- produto próximo do vencimento;
+- produto vencido;
+- estoque baixo;
+- retirada do material para uso;
+- devolução ao estoque;
+- atualização real recebida pelo Cloud Sync;
+- backup manual concluído;
+- erro real de sincronização.
+
+Retirada/devolução somente notificam depois que a gravação do estado do produto foi concluída. Atualização da lista usa uma assinatura determinística da revisão do estoque, evitando repetir a mesma sincronização. Erros de sincronização iguais são limitados a um aviso por dia no mesmo dispositivo.
 
 ## Firebase Cloud Messaging
 
@@ -33,7 +51,7 @@ O token FCM fica somente no dispositivo nesta etapa. O envio remoto deve registr
 `public/sw.js` continua responsável pelo cache/offline do PWA e agora também trata:
 
 - evento `push` para exibir notificação do sistema Android;
-- evento `notificationclick` para focar uma janela existente ou abrir o QuimStock;
+- evento `notificationclick` para focar uma janela do próprio escopo do QuimStock ou abrir o PWA;
 - payload com `title`, `body`, `url` e `notificationKey` em `data`.
 
 O cache foi atualizado para `quimstock-v58`.
@@ -66,8 +84,22 @@ As notificações operacionais não são renderizadas no Dashboard nem em uma ce
 
 `Backup manual` reutiliza a exportação Excel existente. `Restaurar Backup` encaminha o operador para o painel seguro de restauração já existente, preservando as validações atuais do Firebase.
 
+## Testes e CI
+
+`npm test` compila somente `NotificationRules.ts` para uma pasta temporária e executa testes com o runner nativo do Node, sem adicionar dependências ao projeto. Os testes cobrem:
+
+- repetição do mesmo estágio de vencimento;
+- mudança 30 → 15 → 7;
+- nova validade para o mesmo produto;
+- chave de deduplicação explícita;
+- cálculo de dias e rejeição de datas inválidas;
+- ciclo de estoque baixo: normal → baixo → permanece baixo → normaliza → baixo novamente.
+
+O workflow de Pull Request executa `npm install`, `npm test` e `npm run build`. O projeto continua sem ferramenta/script de lint dedicado; o `tsc -b` dentro do build faz a validação estrita de tipos existente.
+
 ## Limites desta etapa
 
 - O repositório não possui backend/Cloud Functions de envio FCM. O cliente está preparado para receber push e obter token, mas um remetente autenticado ainda precisa ser configurado para notificações com o PWA totalmente fechado.
-- O `package.json` atual não possui scripts de lint ou testes automatizados. O CI existente valida `npm install` e `npm run build` em Pull Requests.
+- A variável pública `VITE_FIREBASE_VAPID_KEY` precisa ser configurada no ambiente de produção para que o token FCM Web seja obtido.
 - A versão Capacitor/APK é uma aplicação nativa WebView. Esta implementação é de Web Push para o PWA instalado pelo navegador Android. Push nativo do APK exigiria a integração específica do Capacitor/FCM e deve ser tratada separadamente.
+- O CI consegue validar build web e compilação Android, mas não substitui um teste físico de permissão e entrega de notificação em um aparelho Android.
