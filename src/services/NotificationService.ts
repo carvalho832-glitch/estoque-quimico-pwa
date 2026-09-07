@@ -1,3 +1,4 @@
+import { lowStockTransition, notificationKeyFor } from './NotificationRules';
 import { getSettings } from './SettingsService';
 
 export type NotificationEventType =
@@ -58,27 +59,7 @@ function eventEnabled(type: NotificationEventType): boolean {
 }
 
 export function notificationKey(event: QuimStockNotificationEvent): string {
-  if (event.dedupKey) return event.dedupKey;
-
-  const product = event.productId || 'global';
-  switch (event.type) {
-    case 'EXPIRATION':
-      return `${product}:expiration:${event.expiryDate || 'unknown'}:${event.stage ?? 'stage'}`;
-    case 'EXPIRED':
-      return `${product}:expired:${event.expiryDate || 'unknown'}`;
-    case 'LOW_STOCK':
-      return `${product}:low-stock`;
-    case 'STOCK_REMOVED':
-      return `${product}:stock-removed:${event.detail || 'transition'}`;
-    case 'STOCK_RETURNED':
-      return `${product}:stock-returned:${event.detail || 'transition'}`;
-    case 'LIST_UPDATED':
-      return `global:list-updated:${event.detail || 'update'}`;
-    case 'BACKUP_COMPLETED':
-      return `global:backup:${event.detail || new Date().toISOString().slice(0, 10)}`;
-    case 'SYNC_ERROR':
-      return `global:sync-error:${event.detail || new Date().toISOString().slice(0, 13)}`;
-  }
+  return notificationKeyFor(event);
 }
 
 function buildMessage(event: QuimStockNotificationEvent): { title: string; body: string } {
@@ -116,8 +97,9 @@ function markSent(key: string): void {
 
 export function normalizeLowStockState(productId: string): void {
   const state = readJsonRecord<LowStockState>(LOW_STOCK_KEY);
-  if (!state[productId]) return;
-  delete state[productId];
+  const transition = lowStockTransition(Boolean(state[productId]), false);
+  if (transition.nextActive) state[productId] = true;
+  else delete state[productId];
   writeJsonRecord(LOW_STOCK_KEY, state);
 }
 
@@ -137,7 +119,10 @@ export async function sendSystemNotification(event: QuimStockNotificationEvent):
   if (!('serviceWorker' in navigator)) return false;
 
   const key = notificationKey(event);
-  if (event.type === 'LOW_STOCK' && event.productId && lowStockAlreadyActive(event.productId)) return false;
+  if (event.type === 'LOW_STOCK' && event.productId) {
+    const transition = lowStockTransition(lowStockAlreadyActive(event.productId), true);
+    if (!transition.shouldNotify) return false;
+  }
   if (event.type !== 'LOW_STOCK' && hasBeenSent(key)) return false;
 
   const registration = await navigator.serviceWorker.ready;
