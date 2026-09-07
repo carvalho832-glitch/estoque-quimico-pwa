@@ -1,4 +1,4 @@
-const CACHE_NAME = 'quimstock-v57';
+const CACHE_NAME = 'quimstock-v58';
 const APP_SHELL = ['./', './index.html', './cloud.html', './manifest.webmanifest', './icon.svg', './facc-logo.svg'];
 
 self.addEventListener('install', (event) => {
@@ -45,5 +45,51 @@ self.addEventListener('fetch', (event) => {
         return response;
       })
       .catch(() => caches.match(event.request)),
+  );
+});
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+
+  let payload = {};
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { data: { body: event.data.text() } };
+  }
+
+  const notification = payload.notification || {};
+  const data = payload.data || {};
+  const title = notification.title || data.title || 'QuimStock';
+  const body = notification.body || data.body || 'Há uma nova atualização no estoque.';
+  const url = data.url || './';
+  const tag = data.notificationKey || data.tag || undefined;
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: './icon.svg',
+      badge: './icon.svg',
+      tag,
+      data: { ...data, url },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || './', self.location.href).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
+      const sameOriginClient = clients.find((client) => new URL(client.url).origin === self.location.origin);
+      if (sameOriginClient) {
+        if ('navigate' in sameOriginClient && sameOriginClient.url !== targetUrl) {
+          await sameOriginClient.navigate(targetUrl);
+        }
+        return sameOriginClient.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    }),
   );
 });
