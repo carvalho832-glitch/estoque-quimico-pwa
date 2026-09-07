@@ -43,6 +43,9 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Executar testes
+        run: npm test
+
       - name: Gerar aplicação
         run: npm run build
 
