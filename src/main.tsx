@@ -4,10 +4,13 @@ import { Capacitor } from '@capacitor/core';
 import App from './App';
 import AdminCloudStockRepair from './components/AdminCloudStockRepair';
 import AdminResetStock from './components/AdminResetStock';
+import AdminSettingsPortal from './components/AdminSettingsPortal';
 import AdminStockImport from './components/AdminStockImport';
 import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
 import Dashboard from './Dashboard';
+import { startNotificationScheduler } from './services/NotificationScheduler';
+import { refreshPushToken, startForegroundPushBridge } from './services/PushService';
 import './styles.css';
 import './android-fullscreen.css';
 import './dashboard-usage.css';
@@ -43,9 +46,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <AdminResetStock />
         </>
       )}
+      <AdminSettingsPortal />
     </CloudSession>
   </React.StrictMode>,
 );
+
+startNotificationScheduler();
 
 if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta.env.PROD) {
   let refreshing = false;
@@ -59,7 +65,13 @@ if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('./sw.js', { updateViaCache: 'none' })
-      .then((registration) => registration.update())
+      .then(async (registration) => {
+        await registration.update();
+        await startForegroundPushBridge();
+        if ('Notification' in window && Notification.permission === 'granted') {
+          await refreshPushToken().catch((error) => console.warn('Falha ao renovar token FCM:', error));
+        }
+      })
       .catch((error) => {
         console.error('Falha ao registrar o service worker:', error);
       });
