@@ -1,0 +1,46 @@
+name: Publicar backend Firebase
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Functions e Firestore Rules
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Instalar dependências das Functions
+        run: npm --prefix functions install --no-audit --no-fund
+
+      - name: Testar backend
+        run: npm --prefix functions test
+
+      - name: Validar credencial Firebase
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_QUIMSTOCK }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Crie o secret FIREBASE_SERVICE_ACCOUNT_QUIMSTOCK antes do deploy."
+            exit 1
+          fi
+
+      - name: Autenticar no Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_QUIMSTOCK }}
+
+      - name: Publicar Functions e regras
+        run: npx --yes firebase-tools@15.29.0 deploy --only functions,firestore:rules --project quimstock --non-interactive
