@@ -144,7 +144,6 @@ export async function sendSystemNotification(event: QuimStockNotificationEvent):
     icon: ICON_URL,
     badge: ICON_URL,
     tag: key,
-    renotify: false,
     data: {
       url: event.route || './',
       notificationKey: key,
