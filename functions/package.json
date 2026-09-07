@@ -6,7 +6,7 @@
     "node": "22"
   },
   "scripts": {
-    "test": "node --test test/*.test.js && node --check index.js"
+    "test": "node --test test/*.test.js && node -e \"require('./index.js'); console.log('Firebase Functions carregadas com sucesso.')\""
   },
   "dependencies": {
     "firebase-admin": "14.3.0",
