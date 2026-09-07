@@ -1,5 +1,6 @@
 import { getApp, getApps } from 'firebase/app';
 import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { deleteToken, getMessaging, getToken, isSupported, onMessage, type Messaging } from 'firebase/messaging';
 import { firebaseAuth, firebaseDb } from '../lib/firebase';
 
@@ -12,6 +13,7 @@ export type PushStatus = {
 };
 
 const TOKEN_KEY = 'quimstock:fcm-token:v1';
+const FUNCTIONS_REGION = 'southamerica-east1';
 let foregroundBridgeStarted = false;
 
 function vapidKey(): string {
@@ -137,6 +139,13 @@ export async function disablePushToken(): Promise<void> {
     try { await deleteToken(messaging); } catch (error) { console.warn('Não foi possível invalidar o token FCM:', error); }
   }
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export async function sendRemotePushTest(): Promise<void> {
+  if (!firebaseAuth?.currentUser) throw new Error('Faça login no QuimStock para testar o push remoto.');
+  if (!getApps().length) throw new Error('Firebase não configurado.');
+  const callable = httpsCallable(getFunctions(getApp(), FUNCTIONS_REGION), 'sendPushTest');
+  await callable();
 }
 
 export async function startForegroundPushBridge(): Promise<void> {
