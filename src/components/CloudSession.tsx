@@ -13,6 +13,8 @@ import {
   subscribeCloudProducts,
 } from '../lib/db';
 import { firebaseAuth, firebaseConfigured } from '../lib/firebase';
+import { sendSystemNotification } from '../services/NotificationService';
+import type { Product } from '../types';
 import './cloud-session.css';
 
 type Props = {
@@ -52,6 +54,36 @@ function authErrorMessage(error: unknown): string {
 
 function dispatchProductsChanged(): void {
   window.dispatchEvent(new CustomEvent('quimstock:products-changed'));
+}
+
+function stableHash(value: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function productRevisionSignature(products: Product[]): string {
+  const revision = products
+    .map((product) => [
+      product.id,
+      product.updatedAt,
+      product.quantity,
+      product.availabilityStatus ?? 'stock',
+      product.expiryDate,
+    ].join(':'))
+    .sort()
+    .join('|');
+  return stableHash(revision || 'empty-stock');
+}
+
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export default function CloudSession({ children }: Props) {
@@ -103,6 +135,24 @@ export default function CloudSession({ children }: Props) {
       setDataRevision((current) => current + 1);
     }
 
+    function notifyListUpdated(products: Product[]) {
+      void sendSystemNotification({
+        type: 'LIST_UPDATED',
+        detail: 'Estoque sincronizado.',
+        dedupKey: `cloud-list:${userId}:${productRevisionSignature(products)}`,
+        route: './',
+      }).catch((notificationError) => console.warn('Falha ao notificar atualização da lista:', notificationError));
+    }
+
+    function notifySyncFailure(syncMessage: string) {
+      void sendSystemNotification({
+        type: 'SYNC_ERROR',
+        detail: syncMessage,
+        dedupKey: `sync-error:${userId}:${localDateKey()}:${stableHash(syncMessage)}`,
+        route: './',
+      }).catch((notificationError) => console.warn('Falha ao notificar erro de sincronização:', notificationError));
+    }
+
     async function connectCloud() {
       const sequence = ++connectSequence;
       unsubscribe();
@@ -138,6 +188,7 @@ export default function CloudSession({ children }: Props) {
         setSessionReady(true);
         setSyncState('synced');
         notifyProductsChanged();
+        notifyListUpdated(result.products);
 
         if (result.discardedStaleUpdates > 0) {
           console.warn(
@@ -147,16 +198,21 @@ export default function CloudSession({ children }: Props) {
 
         unsubscribe = subscribeCloudProducts(
           userId,
-          () => {
+          (products) => {
             if (!active || sequence !== connectSequence) return;
             setSyncState(navigator.onLine ? 'synced' : 'offline');
             notifyProductsChanged();
+            if (navigator.onLine) notifyListUpdated(products);
           },
           (error) => {
             console.error(error);
             if (!active || sequence !== connectSequence) return;
             setSyncState(navigator.onLine ? 'error' : 'offline');
-            if (navigator.onLine) setSyncError('A conexão com o estoque oficial foi interrompida. Tente sincronizar novamente.');
+            if (navigator.onLine) {
+              const syncMessage = 'A conexão com o estoque oficial foi interrompida. Tente sincronizar novamente.';
+              setSyncError(syncMessage);
+              notifySyncFailure(syncMessage);
+            }
           },
         );
       } catch (error) {
@@ -164,11 +220,11 @@ export default function CloudSession({ children }: Props) {
         if (!active || sequence !== connectSequence) return;
         setSyncState(navigator.onLine ? 'error' : 'offline');
         setSessionReady(!navigator.onLine);
-        setSyncError(
-          navigator.onLine
-            ? (error instanceof Error ? error.message : 'Não foi possível carregar o estoque oficial da nuvem.')
-            : '',
-        );
+        const syncMessage = navigator.onLine
+          ? (error instanceof Error ? error.message : 'Não foi possível carregar o estoque oficial da nuvem.')
+          : '';
+        setSyncError(syncMessage);
+        if (syncMessage) notifySyncFailure(syncMessage);
       }
     }
 
