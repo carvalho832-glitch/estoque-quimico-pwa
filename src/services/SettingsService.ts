@@ -1,3 +1,6 @@
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { firebaseAuth, firebaseDb } from '../lib/firebase';
+
 export type NotificationSettings = {
   settingsVersion: 1;
   notifyExpiration: boolean;
@@ -84,10 +87,30 @@ export function getSettings(): NotificationSettings {
   }
 }
 
+export async function syncSettingsToCloud(settings: NotificationSettings = getSettings()): Promise<boolean> {
+  const user = firebaseAuth?.currentUser;
+  if (!user || !firebaseDb || !navigator.onLine) return false;
+
+  const normalized = normalizeSettings(settings);
+  await setDoc(
+    doc(firebaseDb, 'users', user.uid, 'settings', 'notifications'),
+    {
+      ...normalized,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Sao_Paulo',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return true;
+}
+
 export function saveSettings(settings: NotificationSettings): NotificationSettings {
   const normalized = normalizeSettings(settings);
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalized));
   window.dispatchEvent(new CustomEvent(SETTINGS_EVENT, { detail: normalized }));
+  void syncSettingsToCloud(normalized).catch((error) => {
+    console.warn('Configurações salvas localmente; sincronização de notificações pendente:', error);
+  });
   return normalized;
 }
 

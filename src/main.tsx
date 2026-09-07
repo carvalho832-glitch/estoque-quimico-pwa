@@ -9,6 +9,7 @@ import AdminStockImport from './components/AdminStockImport';
 import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
 import Dashboard from './Dashboard';
+import { startCloudNotificationBridge } from './services/CloudNotificationBridge';
 import { startNotificationScheduler } from './services/NotificationScheduler';
 import { refreshPushToken, startForegroundPushBridge } from './services/PushService';
 import './styles.css';
@@ -52,6 +53,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 
 startNotificationScheduler();
+startCloudNotificationBridge();
 
 if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && import.meta.env.PROD) {
   let refreshing = false;

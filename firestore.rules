@@ -2,11 +2,11 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/products/{productId} {
-      function isOwner() {
-        return request.auth != null && request.auth.uid == userId;
-      }
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
 
+    match /users/{userId}/products/{productId} {
       function isStockStateDocument() {
         return productId == 'quimstock-stock-state';
       }
@@ -15,10 +15,53 @@ service cloud.firestore {
         return request.resource.data._syncProtocol == 2;
       }
 
-      allow read: if isOwner();
-      allow create, update: if isOwner()
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
         && (isStockStateDocument() || usesCurrentSyncProtocol());
-      allow delete: if isOwner();
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/pushTokens/{tokenId} {
+      function validPushToken() {
+        return request.resource.data.token is string
+          && request.resource.data.token.size() > 20
+          && request.resource.data.token.size() <= 4096
+          && request.resource.data.platform == 'web'
+          && request.resource.data.enabled is bool;
+      }
+
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validPushToken();
+    }
+
+    match /users/{userId}/settings/{settingId} {
+      function validNotificationSettings() {
+        return settingId == 'notifications'
+          && request.resource.data.settingsVersion == 1
+          && request.resource.data.notifyExpiration is bool
+          && request.resource.data.notifyExpired is bool
+          && request.resource.data.notifyLowStock is bool
+          && request.resource.data.notifyStockRemoval is bool
+          && request.resource.data.notifyStockReturn is bool
+          && request.resource.data.notifyListUpdate is bool
+          && request.resource.data.notifyBackup is bool
+          && request.resource.data.notifySyncError is bool
+          && request.resource.data.expirationDays is list
+          && request.resource.data.checkTimes is list
+          && request.resource.data.lowStockThreshold is int
+          && request.resource.data.lowStockThreshold >= 0
+          && request.resource.data.lowStockThreshold <= 9999;
+      }
+
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId) && validNotificationSettings();
+      allow delete: if isOwner(userId) && settingId == 'notifications';
+    }
+
+    // notificationDelivery is intentionally server-only. Cloud Functions use the
+    // Admin SDK and bypass client rules; web clients receive no access here.
+    match /users/{userId}/notificationDelivery/{deliveryId} {
+      allow read, write: if false;
     }
   }
 }
