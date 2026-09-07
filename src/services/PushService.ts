@@ -1,12 +1,14 @@
 import { getApp, getApps } from 'firebase/app';
+import { deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { deleteToken, getMessaging, getToken, isSupported, onMessage, type Messaging } from 'firebase/messaging';
-import '../lib/firebase';
+import { firebaseAuth, firebaseDb } from '../lib/firebase';
 
 export type PushStatus = {
   supported: boolean;
   permission: NotificationPermission | 'unsupported';
   token: string | null;
   configured: boolean;
+  registeredInCloud: boolean;
 };
 
 const TOKEN_KEY = 'quimstock:fcm-token:v1';
@@ -26,13 +28,57 @@ async function serviceWorkerRegistration(): Promise<ServiceWorkerRegistration | 
   return navigator.serviceWorker.ready;
 }
 
+async function tokenDocumentId(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function registerTokenInCloud(token: string): Promise<boolean> {
+  const user = firebaseAuth?.currentUser;
+  if (!user || !firebaseDb || !navigator.onLine) return false;
+
+  const registration = await serviceWorkerRegistration();
+  const tokenId = await tokenDocumentId(token);
+  await setDoc(
+    doc(firebaseDb, 'users', user.uid, 'pushTokens', tokenId),
+    {
+      token,
+      platform: 'web',
+      enabled: true,
+      serviceWorkerScope: registration?.scope || null,
+      userAgent: navigator.userAgent.slice(0, 500),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  );
+  return true;
+}
+
+async function removeTokenFromCloud(token: string): Promise<void> {
+  const user = firebaseAuth?.currentUser;
+  if (!user || !firebaseDb || !navigator.onLine) return;
+  const tokenId = await tokenDocumentId(token);
+  await deleteDoc(doc(firebaseDb, 'users', user.uid, 'pushTokens', tokenId));
+}
+
 export async function getPushStatus(): Promise<PushStatus> {
   const supported = 'Notification' in window && 'serviceWorker' in navigator && await isSupported().catch(() => false);
+  const token = localStorage.getItem(TOKEN_KEY);
+  let registeredInCloud = false;
+  if (token && firebaseAuth?.currentUser && navigator.onLine) {
+    try {
+      registeredInCloud = await registerTokenInCloud(token);
+    } catch {
+      registeredInCloud = false;
+    }
+  }
+
   return {
     supported,
     permission: supported ? Notification.permission : 'unsupported',
-    token: localStorage.getItem(TOKEN_KEY),
+    token,
     configured: Boolean(vapidKey() && getApps().length),
+    registeredInCloud,
   };
 }
 
@@ -52,16 +98,40 @@ export async function refreshPushToken(): Promise<string | null> {
   const registration = await serviceWorkerRegistration();
   if (!messaging || !registration) return null;
 
+  const previousToken = localStorage.getItem(TOKEN_KEY);
   const token = await getToken(messaging, {
     vapidKey: key,
     serviceWorkerRegistration: registration,
   });
 
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  return token || null;
+  if (!token) return null;
+
+  localStorage.setItem(TOKEN_KEY, token);
+  await registerTokenInCloud(token);
+
+  if (previousToken && previousToken !== token) {
+    await removeTokenFromCloud(previousToken).catch((error) => {
+      console.warn('Token FCM anterior não pôde ser removido da nuvem:', error);
+    });
+  }
+
+  return token;
+}
+
+export async function syncStoredPushToken(): Promise<boolean> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return false;
+  return registerTokenInCloud(token);
 }
 
 export async function disablePushToken(): Promise<void> {
+  const storedToken = localStorage.getItem(TOKEN_KEY);
+  if (storedToken) {
+    await removeTokenFromCloud(storedToken).catch((error) => {
+      console.warn('Não foi possível remover o token FCM do Firestore:', error);
+    });
+  }
+
   const messaging = await messagingInstance();
   if (messaging) {
     try { await deleteToken(messaging); } catch (error) { console.warn('Não foi possível invalidar o token FCM:', error); }
