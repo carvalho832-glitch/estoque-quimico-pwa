@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'r
 import { createPortal } from 'react-dom';
 import { saveProduct } from '../lib/db';
 import { getTechnicalSheet } from '../lib/technicalSheets';
+import { sendSystemNotification } from '../services/NotificationService';
 import type { Product, ProductUsage } from '../types';
 import StockQuantityControl from './StockQuantityControl';
 import TechnicalSheetPanel from './TechnicalSheetPanel';
@@ -83,6 +84,13 @@ export default function ProductUsagePanel({ product, onUpdated, onMessage }: Pro
         updatedAt: now,
       });
       await onUpdated();
+      void sendSystemNotification({
+        type: 'STOCK_REMOVED',
+        productId: product.id,
+        productName: product.name || product.ecode,
+        detail: `usage:${now}`,
+        route: './',
+      }).catch((notificationError) => console.warn('Falha ao notificar retirada do estoque:', notificationError));
       setDraft(EMPTY_USAGE);
       setFormOpen(false);
       onMessage(`${product.name} marcado como “Em uso”. Data e hora registradas automaticamente.`);
@@ -110,6 +118,13 @@ export default function ProductUsagePanel({ product, onUpdated, onMessage }: Pro
         updatedAt: now,
       });
       await onUpdated();
+      void sendSystemNotification({
+        type: 'STOCK_RETURNED',
+        productId: product.id,
+        productName: product.name || product.ecode,
+        detail: `usage:${product.currentUsage.startedAt}:${now}`,
+        route: './',
+      }).catch((notificationError) => console.warn('Falha ao notificar devolução ao estoque:', notificationError));
       onMessage(`${product.name} retornou ao estoque. A devolução foi registrada automaticamente.`);
     } catch (saveError) {
       console.error(saveError);
