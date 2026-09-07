@@ -19,6 +19,7 @@ export type QuimStockNotificationEvent = {
   quantity?: number;
   route?: string;
   detail?: string;
+  dedupKey?: string;
 };
 
 type NotificationLedger = Record<string, string>;
@@ -57,6 +58,8 @@ function eventEnabled(type: NotificationEventType): boolean {
 }
 
 export function notificationKey(event: QuimStockNotificationEvent): string {
+  if (event.dedupKey) return event.dedupKey;
+
   const product = event.productId || 'global';
   switch (event.type) {
     case 'EXPIRATION':
