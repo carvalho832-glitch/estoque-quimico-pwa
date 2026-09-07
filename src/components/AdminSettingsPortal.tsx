@@ -16,6 +16,7 @@ import {
   androidSettingsGuidance,
   getPushStatus,
   requestPushPermission,
+  sendRemotePushTest,
   type PushStatus,
 } from '../services/PushService';
 import './admin-settings.css';
@@ -177,6 +178,28 @@ export default function AdminSettingsPortal() {
     }
   }
 
+  async function remotePushTest() {
+    setBusy(true);
+    setMessage('Preparando teste remoto...');
+    try {
+      let status = await getPushStatus();
+      if (!status.configured) throw new Error('O push remoto ainda aguarda a chave VAPID do Firebase.');
+      if (status.permission !== 'granted') throw new Error('Ative as notificações Android antes de testar o push remoto.');
+      if (!status.registeredInCloud) {
+        await requestPushPermission();
+        status = await getPushStatus();
+      }
+      setPushStatus(status);
+      if (!status.registeredInCloud) throw new Error('O token FCM ainda não foi registrado na nuvem.');
+      await sendRemotePushTest();
+      setMessage('Teste remoto enviado. A notificação deve chegar pela barra do Android.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível enviar o teste remoto.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function manualCheck() {
     setBusy(true);
     setMessage('Verificando vencimentos e estoque baixo...');
@@ -313,9 +336,12 @@ export default function AdminSettingsPortal() {
                 </div>
                 <div className="admin-action-row">
                   <button type="button" disabled={busy} onClick={() => void activateNotifications()}>{pushStatus?.permission === 'granted' ? 'Renovar token FCM' : 'Ativar notificações Android'}</button>
+                  <button type="button" disabled={busy} onClick={() => void remotePushTest()}>Testar push remoto</button>
                   <button type="button" disabled={busy} onClick={() => void manualCheck()}>Verificar agora</button>
                 </div>
-                <small className="admin-tech-status">FCM: {pushStatus?.configured ? 'configurado' : 'aguardando VAPID'} · Permissão: {pushStatus?.permission ?? 'verificando'}</small>
+                <small className="admin-tech-status">
+                  FCM: {pushStatus?.configured ? 'configurado' : 'aguardando VAPID'} · Token: {pushStatus?.registeredInCloud ? 'registrado na nuvem' : pushStatus?.token ? 'somente no dispositivo' : 'ausente'} · Permissão: {pushStatus?.permission ?? 'verificando'}
+                </small>
               </article>
 
               <article className="admin-settings-card">
@@ -331,7 +357,7 @@ export default function AdminSettingsPortal() {
               </article>
 
               <article className="admin-settings-card">
-                <div className="admin-card-title"><span>🕒</span><div><h3>Horário de verificação</h3><p>O PWA verifica nesses horários enquanto estiver ativo.</p></div></div>
+                <div className="admin-card-title"><span>🕒</span><div><h3>Horário de verificação</h3><p>O backend verifica os horários na nuvem, mesmo com o PWA fechado.</p></div></div>
                 <div className="admin-chip-grid">
                   {DEFAULT_TIMES.map((time) => (
                     <label className="admin-chip-toggle" key={time}>
