@@ -49,6 +49,28 @@ jobs:
       - name: Gerar aplicação
         run: npm run build
 
+      - name: Conferir configuração VAPID
+        shell: bash
+        run: |
+          if [ -n "$VITE_FIREBASE_VAPID_KEY" ]; then
+            echo "VAPID_CONFIGURED=true"
+          else
+            echo "::warning::VITE_FIREBASE_VAPID_KEY ainda não está configurada nas variables do repositório."
+            echo "VAPID_CONFIGURED=false"
+          fi
+
+      - name: Configurar Node.js para Functions
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Instalar dependências das Functions
+        run: npm --prefix functions install --no-audit --no-fund
+
+      - name: Testar backend de notificações
+        run: npm --prefix functions test
+
       - name: Configurar GitHub Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
