@@ -59,6 +59,18 @@ jobs:
             echo "VAPID_CONFIGURED=false"
           fi
 
+      - name: Conferir credencial de deploy Firebase
+        shell: bash
+        env:
+          FIREBASE_DEPLOY_CONFIGURED: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_QUIMSTOCK != '' }}
+        run: |
+          if [ "$FIREBASE_DEPLOY_CONFIGURED" = "true" ]; then
+            echo "FIREBASE_DEPLOY_CONFIGURED=true"
+          else
+            echo "::warning::FIREBASE_SERVICE_ACCOUNT_QUIMSTOCK ainda não está configurado nos secrets do repositório."
+            echo "FIREBASE_DEPLOY_CONFIGURED=false"
+          fi
+
       - name: Configurar Node.js para Functions
         uses: actions/setup-node@v6
         with:
