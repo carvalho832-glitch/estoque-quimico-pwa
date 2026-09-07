@@ -1,5 +1,6 @@
 import type { Product } from '../types';
 import { listProducts } from '../lib/db';
+import { daysUntilExpiry } from './NotificationRules';
 import { getSettings, subscribeToSettings } from './SettingsService';
 import { normalizeLowStockState, sendSystemNotification } from './NotificationService';
 
@@ -16,15 +17,6 @@ function localDateKey(date = new Date()): string {
 
 function currentTime(date = new Date()): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-}
-
-function daysUntil(expiryDate: string, now = new Date()): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) return null;
-  const [year, month, day] = expiryDate.split('-').map(Number);
-  const expiry = new Date(year, month - 1, day);
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (Number.isNaN(expiry.getTime())) return null;
-  return Math.round((expiry.getTime() - today.getTime()) / 86_400_000);
 }
 
 function readRuns(): Record<string, boolean> {
@@ -48,7 +40,7 @@ function markRun(slot: string): void {
 
 async function checkProduct(product: Product): Promise<void> {
   const settings = getSettings();
-  const days = daysUntil(product.expiryDate);
+  const days = daysUntilExpiry(product.expiryDate);
   const route = './';
 
   if (days !== null) {
