@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { saveProductsBatch } from '../lib/db';
+import { removeProduct, saveProductsBatch } from '../lib/db';
 import { parseInventoryQr } from '../lib/qr';
 import type { Product } from '../types';
 import InventoryManualEntry, {
@@ -22,6 +22,8 @@ export type TemporaryInventoryRow = {
   qrCount?: number;
   manualCount?: number;
   manualReasons?: ManualEntryReason[];
+  registeredAtStart: boolean;
+  protectedInUse: boolean;
 };
 
 type TemporaryInventorySession = {
@@ -36,7 +38,7 @@ type InventorySessionProps = {
   onClose: () => void;
 };
 
-const STORAGE_KEY = 'quimstock-temporary-inventory-v1';
+const STORAGE_KEY = 'quimstock-temporary-inventory-v2';
 const EMPTY_SESSION: TemporaryInventorySession = {
   status: 'ready',
   startedAt: '',
@@ -69,7 +71,9 @@ function loadSession(): TemporaryInventorySession {
         manualReasons: Array.isArray(row.manualReasons)
           ? row.manualReasons.filter(isManualEntryReason)
           : [],
-      };
+        registeredAtStart: row.registeredAtStart !== false,
+        protectedInUse: row.protectedInUse === true,
+      } as TemporaryInventoryRow;
     });
 
     return {
@@ -101,6 +105,27 @@ function normalize(value: string): string {
   return value.trim().toUpperCase();
 }
 
+function productIsInUse(product: Product): boolean {
+  return product.availabilityStatus === 'in-use';
+}
+
+function productToInventoryRow(product: Product): TemporaryInventoryRow {
+  return {
+    productId: product.id,
+    ecode: product.ecode,
+    name: product.name,
+    batch: product.batch,
+    expiryDate: product.expiryDate,
+    systemQuantity: product.quantity,
+    countedQuantity: 0,
+    qrCount: 0,
+    manualCount: 0,
+    manualReasons: [],
+    registeredAtStart: true,
+    protectedInUse: productIsInUse(product),
+  };
+}
+
 export default function InventorySession({ open, products, onClose }: InventorySessionProps) {
   const [session, setSession] = useState<TemporaryInventorySession>(() => loadSession());
   const [message, setMessage] = useState('');
@@ -113,46 +138,19 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     [products],
   );
 
+  const snapshotProductIds = useMemo(
+    () => new Set(session.rows.filter((row) => row.registeredAtStart).map((row) => row.productId)),
+    [session.rows],
+  );
+
+  const manualEntryProducts = useMemo(
+    () => products.filter((product) => snapshotProductIds.has(product.id)),
+    [products, snapshotProductIds],
+  );
+
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }, [session]);
-
-  useEffect(() => {
-    if (!products.length) return;
-
-    setSession((current) => {
-      let changed = false;
-      const rows = current.rows.map((row) => {
-        const exactProduct = products.find(
-          (product) => normalize(product.ecode) === normalize(row.ecode)
-            && normalize(product.batch) === normalize(row.batch),
-        );
-
-        if (!exactProduct) return row;
-
-        const reconciledRow: TemporaryInventoryRow = {
-          ...row,
-          productId: exactProduct.id,
-          name: exactProduct.name,
-          expiryDate: exactProduct.expiryDate,
-          systemQuantity: exactProduct.quantity,
-        };
-
-        if (
-          row.productId !== reconciledRow.productId
-          || row.name !== reconciledRow.name
-          || row.expiryDate !== reconciledRow.expiryDate
-          || row.systemQuantity !== reconciledRow.systemQuantity
-        ) {
-          changed = true;
-        }
-
-        return reconciledRow;
-      });
-
-      return changed ? { ...current, rows } : current;
-    });
-  }, [products]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -173,29 +171,51 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
   const totals = useMemo(() => {
     const countedUnits = session.rows.reduce((sum, row) => sum + row.countedQuantity, 0);
-    const divergences = session.rows.filter((row) => row.systemQuantity !== row.countedQuantity).length;
+    const foundLots = session.rows.filter((row) => row.countedQuantity > 0).length;
+    const divergences = session.rows.filter((row) => {
+      if (!row.registeredAtStart) return row.countedQuantity > 0;
+      if (row.protectedInUse) return false;
+      return row.systemQuantity !== row.countedQuantity;
+    }).length;
 
     return {
       countedUnits,
-      lots: session.rows.length,
+      foundLots,
       divergences,
     };
   }, [session.rows]);
 
   const unregisteredCount = useMemo(
-    () => session.rows.filter((row) => !productsById.has(row.productId)).length,
-    [productsById, session.rows],
+    () => session.rows.filter((row) => !row.registeredAtStart && row.countedQuantity > 0).length,
+    [session.rows],
+  );
+
+  const missingCount = useMemo(
+    () => session.rows.filter(
+      (row) => row.registeredAtStart && !row.protectedInUse && row.countedQuantity === 0,
+    ).length,
+    [session.rows],
+  );
+
+  const protectedInUseCount = useMemo(
+    () => session.rows.filter((row) => row.registeredAtStart && row.protectedInUse).length,
+    [session.rows],
   );
 
   if (!open) return null;
 
   function startInventory() {
+    const snapshotRows = products.map(productToInventoryRow);
+
     setSession({
       status: 'counting',
       startedAt: new Date().toISOString(),
-      rows: [],
+      rows: snapshotRows,
     });
-    setMessage('Sessão temporária iniciada. Nenhuma quantidade do estoque foi alterada.');
+    window.localStorage.removeItem('quimstock-temporary-inventory-v1');
+    setMessage(
+      `Fotografia do estoque criada com ${snapshotRows.length} lote(s). Agora as leituras representam o que foi encontrado fisicamente.`,
+    );
     setManualEntryOpen(false);
     setScannerOpen(true);
   }
@@ -203,49 +223,81 @@ export default function InventorySession({ open, products, onClose }: InventoryS
   function countQrCode(rawValue: string) {
     try {
       const qr = parseInventoryQr(rawValue);
-      const exactProduct = products.find(
-        (product) => normalize(product.ecode) === qr.ecode && normalize(product.batch) === qr.batch,
+      const matchingRows = session.rows.filter(
+        (row) => normalize(row.ecode) === qr.ecode && normalize(row.batch) === qr.batch,
       );
-      const knownProduct = exactProduct ?? products.find((product) => normalize(product.ecode) === qr.ecode);
-      const rowId = exactProduct?.id ?? `not-registered:${qr.ecode}:${qr.batch}`;
-      const previousRow = session.rows.find((row) => row.productId === rowId);
-      const nextQuantity = (previousRow?.countedQuantity ?? 0) + 1;
+      const targetRow = matchingRows.find((row) => !row.protectedInUse) ?? matchingRows[0];
+      const knownProduct = products.find((product) => normalize(product.ecode) === qr.ecode);
+      const rowId = targetRow?.productId ?? `not-registered:${qr.ecode}:${qr.batch}`;
+      const nextQuantity = (targetRow?.countedQuantity ?? 0) + 1;
 
       setSession((current) => {
-        const existingIndex = current.rows.findIndex((row) => row.productId === rowId);
+        const currentMatches = current.rows.filter(
+          (row) => normalize(row.ecode) === qr.ecode && normalize(row.batch) === qr.batch,
+        );
+        const currentTarget = currentMatches.find((row) => !row.protectedInUse) ?? currentMatches[0];
 
-        if (existingIndex >= 0) {
-          const rows = [...current.rows];
-          rows[existingIndex] = {
-            ...rows[existingIndex],
-            countedQuantity: rows[existingIndex].countedQuantity + 1,
-            qrCount: (rows[existingIndex].qrCount ?? 0) + 1,
+        if (currentTarget) {
+          return {
+            ...current,
+            status: 'counting',
+            rows: current.rows.map((row) => (
+              row.productId === currentTarget.productId
+                ? {
+                    ...row,
+                    countedQuantity: row.countedQuantity + 1,
+                    qrCount: (row.qrCount ?? 0) + 1,
+                  }
+                : row
+            )),
           };
-          return { ...current, status: 'counting', rows };
+        }
+
+        const existingUnknown = current.rows.find((row) => row.productId === rowId);
+        if (existingUnknown) {
+          return {
+            ...current,
+            status: 'counting',
+            rows: current.rows.map((row) => (
+              row.productId === rowId
+                ? {
+                    ...row,
+                    countedQuantity: row.countedQuantity + 1,
+                    qrCount: (row.qrCount ?? 0) + 1,
+                  }
+                : row
+            )),
+          };
         }
 
         const newRow: TemporaryInventoryRow = {
           productId: rowId,
           ecode: qr.ecode,
-          name: exactProduct?.name ?? knownProduct?.name ?? 'Produto não cadastrado',
+          name: knownProduct?.name ?? 'Produto não cadastrado',
           batch: qr.batch,
-          expiryDate: exactProduct?.expiryDate ?? '',
-          systemQuantity: exactProduct?.quantity ?? 0,
+          expiryDate: '',
+          systemQuantity: 0,
           countedQuantity: 1,
           qrCount: 1,
           manualCount: 0,
           manualReasons: [],
+          registeredAtStart: false,
+          protectedInUse: false,
         };
 
         return { ...current, status: 'counting', rows: [...current.rows, newRow] };
       });
 
-      if (exactProduct) {
-        setMessage(`${exactProduct.name}, lote ${qr.batch}: ${nextQuantity} unidade(s) conferida(s).`);
+      if (targetRow) {
+        if (targetRow.protectedInUse) {
+          setMessage(`${targetRow.name}, lote ${qr.batch}: leitura registrada, mas o item está marcado como Em uso e será preservado.`);
+        } else {
+          setMessage(`${targetRow.name}, lote ${qr.batch}: ${nextQuantity} unidade(s) encontrada(s) fisicamente.`);
+        }
       } else if (knownProduct) {
-        setMessage(`Lote ${qr.batch} do E-code ${qr.ecode} não está cadastrado. A leitura foi mantida para revisão.`);
+        setMessage(`Lote ${qr.batch} do E-code ${qr.ecode} não fazia parte da fotografia inicial. A leitura foi separada para revisão.`);
       } else {
-        setMessage(`E-code ${qr.ecode}, lote ${qr.batch}, não está cadastrado. A leitura foi mantida para revisão.`);
+        setMessage(`E-code ${qr.ecode}, lote ${qr.batch}, não estava cadastrado no início do inventário. A leitura foi separada para revisão.`);
       }
     } catch (error) {
       console.error(error);
@@ -255,8 +307,8 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
   function addManualProduct(productId: string, quantity: number, reason: ManualEntryReason) {
     const product = productsById.get(productId);
-    if (!product) {
-      setMessage('O produto selecionado não está mais disponível no cadastro.');
+    if (!product || !snapshotProductIds.has(productId)) {
+      setMessage('O produto selecionado não fazia parte da fotografia inicial deste inventário.');
       return;
     }
 
@@ -264,38 +316,26 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
     setSession((current) => {
       const existingIndex = current.rows.findIndex((row) => row.productId === product.id);
+      if (existingIndex < 0) return current;
 
-      if (existingIndex >= 0) {
-        const rows = [...current.rows];
-        const currentReasons = rows[existingIndex].manualReasons ?? [];
-        rows[existingIndex] = {
-          ...rows[existingIndex],
-          countedQuantity: rows[existingIndex].countedQuantity + safeQuantity,
-          manualCount: (rows[existingIndex].manualCount ?? 0) + safeQuantity,
-          manualReasons: currentReasons.includes(reason)
-            ? currentReasons
-            : [...currentReasons, reason],
-        };
-        return { ...current, rows };
-      }
-
-      const newRow: TemporaryInventoryRow = {
-        productId: product.id,
-        ecode: product.ecode,
-        name: product.name,
-        batch: product.batch,
-        expiryDate: product.expiryDate,
-        systemQuantity: product.quantity,
-        countedQuantity: safeQuantity,
-        qrCount: 0,
-        manualCount: safeQuantity,
-        manualReasons: [reason],
+      const rows = [...current.rows];
+      const currentReasons = rows[existingIndex].manualReasons ?? [];
+      rows[existingIndex] = {
+        ...rows[existingIndex],
+        countedQuantity: rows[existingIndex].countedQuantity + safeQuantity,
+        manualCount: (rows[existingIndex].manualCount ?? 0) + safeQuantity,
+        manualReasons: currentReasons.includes(reason)
+          ? currentReasons
+          : [...currentReasons, reason],
       };
-
-      return { ...current, rows: [...current.rows, newRow] };
+      return { ...current, rows };
     });
 
-    setMessage(`${product.name}, lote ${product.batch}: ${safeQuantity} unidade(s) adicionada(s) manualmente por “${MANUAL_ENTRY_REASON_LABELS[reason]}”.`);
+    if (productIsInUse(product)) {
+      setMessage(`${product.name}, lote ${product.batch}: leitura manual registrada, mas o item Em uso será preservado sem alteração.`);
+    } else {
+      setMessage(`${product.name}, lote ${product.batch}: ${safeQuantity} unidade(s) adicionada(s) à contagem por “${MANUAL_ENTRY_REASON_LABELS[reason]}”.`);
+    }
   }
 
   function changeCount(productId: string, delta: number) {
@@ -305,8 +345,9 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       const row = current.rows.find((item) => item.productId === productId);
       if (!row) return current;
 
-      const nextQuantity = row.countedQuantity + delta;
-      if (nextQuantity <= 0) {
+      const nextQuantity = Math.max(0, row.countedQuantity + delta);
+
+      if (!row.registeredAtStart && nextQuantity === 0) {
         return { ...current, rows: current.rows.filter((item) => item.productId !== productId) };
       }
 
@@ -321,14 +362,14 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
   function finishReading() {
     if (!session.rows.length) {
-      setMessage('Ainda não há itens na conferência. Use o leitor QR ou adicione um produto manualmente.');
+      setMessage('Não há itens na fotografia inicial nem leituras para revisar.');
       return;
     }
 
     setScannerOpen(false);
     setManualEntryOpen(false);
     setSession((current) => ({ ...current, status: 'review' }));
-    setMessage('Leitura finalizada. Revise E-code, lote, validade e quantidades antes da atualização.');
+    setMessage('Leitura finalizada. Revise encontrados, divergências e itens não encontrados antes de concluir.');
   }
 
   function resumeReading() {
@@ -342,7 +383,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
     if (
       (session.status !== 'ready' || session.rows.length > 0)
-      && !window.confirm('Cancelar e apagar toda a conferência temporária? O estoque não será alterado.')
+      && !window.confirm('Cancelar e apagar toda a conferência temporária? O estoque oficial não será alterado.')
     ) {
       return;
     }
@@ -351,51 +392,80 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     setManualEntryOpen(false);
     setSession(EMPTY_SESSION);
     window.localStorage.removeItem(STORAGE_KEY);
-    setMessage('Inventário temporário cancelado. Nenhum dado do estoque foi modificado.');
+    setMessage('Inventário temporário cancelado. Nenhum dado do estoque oficial foi modificado.');
   }
 
   async function updateStock() {
     if (updating || session.status !== 'review' || !session.rows.length) return;
 
-    const unresolvedRows = session.rows.filter((row) => !productsById.has(row.productId));
+    const unresolvedRows = session.rows.filter((row) => !row.registeredAtStart && row.countedQuantity > 0);
     if (unresolvedRows.length) {
-      setMessage(`Existem ${unresolvedRows.length} lote(s) não cadastrado(s). Cadastre-os ou remova-os da lista antes de atualizar.`);
+      setMessage(`Existem ${unresolvedRows.length} lote(s) que não faziam parte do estoque inicial. Resolva-os antes de concluir.`);
       return;
     }
 
+    const stockRows = session.rows.filter((row) => row.registeredAtStart && !row.protectedInUse);
+    const missingRows = stockRows.filter((row) => row.countedQuantity === 0);
+    const changedRows = stockRows.filter(
+      (row) => row.countedQuantity > 0 && row.countedQuantity !== row.systemQuantity,
+    );
+    const unchangedRows = stockRows.filter(
+      (row) => row.countedQuantity > 0 && row.countedQuantity === row.systemQuantity,
+    );
+    const protectedRows = session.rows.filter((row) => row.registeredAtStart && row.protectedInUse);
+
     const updatedAt = new Date().toISOString();
-    const updatedProducts = session.rows.flatMap((row) => {
+    const updatedProducts = changedRows.flatMap((row) => {
       const product = productsById.get(row.productId);
       return product ? [{ ...product, quantity: row.countedQuantity, updatedAt }] : [];
     });
 
-    const confirmed = window.confirm(
-      `Atualizar ${updatedProducts.length} lote(s) com as quantidades conferidas?\n\nOs produtos que não aparecem nesta lista não serão alterados.`,
-    );
-    if (!confirmed) return;
+    const confirmationLines = [
+      `Concluir o inventário completo?`,
+      '',
+      `${unchangedRows.length} lote(s) conferido(s) sem alteração.`,
+      `${updatedProducts.length} lote(s) terão a quantidade ajustada.`,
+      `${missingRows.length} lote(s) não encontrado(s) serão EXCLUÍDOS do estoque oficial.`,
+      `${protectedRows.length} lote(s) marcados como Em uso serão preservados.`,
+      '',
+      'Esta ação altera o estoque oficial. Itens não encontrados não poderão ser recuperados por este inventário após a confirmação.',
+    ];
+
+    if (!window.confirm(confirmationLines.join('\n'))) return;
 
     setUpdating(true);
-    setMessage('Atualizando as quantidades conferidas...');
+    setMessage('Aplicando a conferência ao estoque oficial...');
 
     try {
-      const result = await saveProductsBatch(updatedProducts);
+      const saveResult = updatedProducts.length
+        ? await saveProductsBatch(updatedProducts)
+        : { saved: 0, syncState: 'local' as const };
+
+      let deleted = 0;
+      for (const row of missingRows) {
+        await removeProduct(row.productId);
+        deleted += 1;
+      }
+
       setScannerOpen(false);
       setManualEntryOpen(false);
       setSession(EMPTY_SESSION);
       window.localStorage.removeItem(STORAGE_KEY);
 
-      if (result.syncState === 'synced') {
-        setMessage(`${result.saved} lote(s) atualizado(s) e sincronizado(s) com sucesso.`);
-      } else if (result.syncState === 'pending') {
-        setMessage(`${result.saved} lote(s) atualizado(s) neste aparelho. A sincronização com a nuvem será retomada automaticamente.`);
-      } else {
-        setMessage(`${result.saved} lote(s) atualizado(s) no banco local com sucesso.`);
-      }
+      const syncMessage = saveResult.syncState === 'pending'
+        ? ' Alterações locais aguardam sincronização com a nuvem.'
+        : saveResult.syncState === 'synced'
+          ? ' Alterações sincronizadas com a nuvem.'
+          : '';
 
-      window.setTimeout(() => window.location.reload(), 1300);
+      setMessage(
+        `Inventário concluído: ${unchangedRows.length} conferido(s), ${saveResult.saved} ajustado(s), ${deleted} excluído(s) e ${protectedRows.length} em uso preservado(s).${syncMessage}`,
+      );
+
+      window.setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
       console.error(error);
-      setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar o estoque. Nenhuma nova tentativa foi feita.');
+      setMessage(error instanceof Error ? error.message : 'Não foi possível concluir o inventário. Revise o estoque antes de tentar novamente.');
     } finally {
       setUpdating(false);
     }
@@ -420,7 +490,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
       {manualEntryOpen && session.status !== 'ready' && (
         <InventoryManualEntry
-          products={products}
+          products={manualEntryProducts}
           onAdd={addManualProduct}
           onClose={() => setManualEntryOpen(false)}
         />
@@ -429,9 +499,9 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       <section className="inventory-window" role="dialog" aria-modal="true" aria-labelledby="temporary-inventory-title">
         <header className="inventory-window-header">
           <div>
-            <span className="eyebrow">CONFERÊNCIA FÍSICA</span>
+            <span className="eyebrow">CONFERÊNCIA FÍSICA COMPLETA</span>
             <h2 id="temporary-inventory-title">Inventário temporário</h2>
-            <p>Confira E-code, lote, validade e quantidade antes de gravar qualquer alteração.</p>
+            <p>A fotografia inicial é comparada com o que foi encontrado fisicamente. Itens não encontrados serão removidos ao concluir.</p>
           </div>
           <button
             className="inventory-window-close"
@@ -454,22 +524,22 @@ export default function InventorySession({ open, products, onClose }: InventoryS
             <strong>{formatStartedAt(session.startedAt)}</strong>
           </div>
           <div>
-            <span>Cadastros no QuimStock</span>
-            <strong>{products.length}</strong>
+            <span>Fotografia inicial</span>
+            <strong>{session.rows.filter((row) => row.registeredAtStart).length} lote(s)</strong>
           </div>
         </div>
 
         <div className="inventory-summary-grid" aria-label="Resumo da conferência temporária">
-          <article><strong>{totals.countedUnits}</strong><span>Unidades conferidas</span></article>
-          <article><strong>{totals.lots}</strong><span>Lotes distintos</span></article>
+          <article><strong>{totals.countedUnits}</strong><span>Unidades encontradas</span></article>
+          <article><strong>{totals.foundLots}</strong><span>Lotes encontrados</span></article>
           <article><strong>{totals.divergences}</strong><span>Divergências</span></article>
         </div>
 
         {session.status === 'ready' ? (
           <div className="inventory-start-state">
             <div className="inventory-start-icon" aria-hidden="true">▦</div>
-            <h3>Começar uma nova conferência</h3>
-            <p>A sessão ficará separada do estoque oficial. Fechar esta janela não apaga o trabalho temporário.</p>
+            <h3>Começar uma nova conferência completa</h3>
+            <p>Ao iniciar, o QuimStock cria uma fotografia temporária do estoque. A lista oficial só muda depois da revisão e confirmação final.</p>
             <button className="inventory-main-action" type="button" onClick={startInventory}>Iniciar inventário</button>
           </div>
         ) : (
@@ -477,8 +547,8 @@ export default function InventorySession({ open, products, onClose }: InventoryS
             {session.status === 'counting' ? (
               <div className="inventory-reader-panel">
                 <div>
-                  <strong>Escolha como contabilizar</strong>
-                  <span>Leia o QR ou inclua manualmente quando a etiqueta estiver ausente ou danificada.</span>
+                  <strong>Conte o que existe fisicamente</strong>
+                  <span>Cada leitura soma uma unidade encontrada daquele E-code + lote. O cadastro oficial não é alterado durante a leitura.</span>
                 </div>
                 <div className="inventory-reader-actions">
                   <button className="inventory-open-scanner" type="button" onClick={() => setScannerOpen(true)}>
@@ -491,12 +561,18 @@ export default function InventorySession({ open, products, onClose }: InventoryS
               </div>
             ) : (
               <>
-                <div className={`inventory-phase-notice ${unregisteredCount ? 'inventory-phase-warning' : ''}`}>
-                  <strong>{unregisteredCount ? `${unregisteredCount} lote(s) precisam de correção` : 'Lista pronta para atualização'}</strong>
+                <div className={`inventory-phase-notice ${unregisteredCount || missingCount ? 'inventory-phase-warning' : ''}`}>
+                  <strong>
+                    {unregisteredCount
+                      ? `${unregisteredCount} lote(s) precisam de correção`
+                      : missingCount
+                        ? `${missingCount} lote(s) não encontrados serão excluídos`
+                        : 'Conferência pronta para aplicar'}
+                  </strong>
                   <span>
                     {unregisteredCount
-                      ? 'Cadastre os lotes ausentes ou reduza a contagem deles até removê-los da lista.'
-                      : 'Somente os lotes desta lista terão as quantidades substituídas.'}
+                      ? 'Resolva os materiais que não faziam parte da fotografia inicial antes de concluir.'
+                      : `Quantidades divergentes serão ajustadas. ${protectedInUseCount} lote(s) Em uso serão preservados.`}
                   </span>
                 </div>
                 <div className="inventory-review-manual">
@@ -515,14 +591,13 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                     <th>Produto</th>
                     <th>Lote</th>
                     <th>Validade</th>
-                    <th>Origem</th>
+                    <th>Situação</th>
                     <th>Sistema</th>
                     <th>Conferido</th>
                   </tr>
                 </thead>
                 <tbody>
                   {session.rows.length ? session.rows.map((row) => {
-                    const registered = productsById.has(row.productId);
                     const hasQr = (row.qrCount ?? 0) > 0;
                     const hasManual = (row.manualCount ?? 0) > 0;
                     const manualTitle = (row.manualReasons ?? [])
@@ -530,22 +605,33 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                       .join(', ');
 
                     return (
-                      <tr className={registered ? '' : 'inventory-unregistered-row'} key={row.productId}>
+                      <tr className={!row.registeredAtStart ? 'inventory-unregistered-row' : ''} key={row.productId}>
                         <td data-label="E-code">{row.ecode}</td>
                         <td data-label="Produto">{row.name}</td>
                         <td data-label="Lote">{row.batch}</td>
                         <td data-label="Validade">{formatExpiryDate(row.expiryDate)}</td>
-                        <td data-label="Origem">
+                        <td data-label="Situação">
                           <div className="inventory-source-badges">
-                            {hasQr && <span className="inventory-source-badge qr">QR</span>}
-                            {hasManual && (
-                              <span className="inventory-source-badge manual" title={manualTitle || 'Inclusão manual'}>
-                                Manual
-                              </span>
+                            {row.protectedInUse ? (
+                              <span className="inventory-source-badge manual">Em uso · preservado</span>
+                            ) : !row.registeredAtStart ? (
+                              <span className="inventory-source-badge manual">Não cadastrado</span>
+                            ) : row.countedQuantity === 0 ? (
+                              <span className="inventory-source-badge manual">Não encontrado</span>
+                            ) : (
+                              <>
+                                {hasQr && <span className="inventory-source-badge qr">QR</span>}
+                                {hasManual && (
+                                  <span className="inventory-source-badge manual" title={manualTitle || 'Inclusão manual'}>
+                                    Manual
+                                  </span>
+                                )}
+                                {!hasQr && !hasManual && <span>Encontrado</span>}
+                              </>
                             )}
                           </div>
                         </td>
-                        <td data-label="Sistema">{registered ? row.systemQuantity : 'Não cadastrado'}</td>
+                        <td data-label="Sistema">{row.registeredAtStart ? row.systemQuantity : 'Não cadastrado'}</td>
                         <td data-label="Conferido">
                           <div className="inventory-count-control">
                             <button
@@ -572,7 +658,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                   }) : (
                     <tr>
                       <td className="inventory-empty-row" colSpan={7}>
-                        Nenhum item contabilizado nesta sessão.
+                        Nenhum item disponível para esta conferência.
                       </td>
                     </tr>
                   )}
@@ -603,10 +689,10 @@ export default function InventorySession({ open, products, onClose }: InventoryS
               onClick={() => void updateStock()}
               disabled={!canUpdate}
               title={unregisteredCount
-                ? 'Resolva os lotes não cadastrados antes de atualizar'
-                : 'Substituir as quantidades dos lotes desta lista'}
+                ? 'Resolva os materiais não cadastrados antes de concluir'
+                : 'Aplicar a conferência completa ao estoque oficial'}
             >
-              {updating ? 'Atualizando...' : 'Atualizar estoque'}
+              {updating ? 'Aplicando...' : 'Concluir inventário'}
             </button>
           </div>
         </footer>
