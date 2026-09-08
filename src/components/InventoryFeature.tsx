@@ -48,9 +48,9 @@ export default function InventoryFeature() {
       {host && createPortal(
         <section className="inventory-entry-panel" aria-label="Inventário temporário por QR Code">
           <div>
-            <span className="eyebrow">CONFERÊNCIA DE ESTOQUE</span>
+            <span className="eyebrow">CONFERÊNCIA COMPLETA DE ESTOQUE</span>
             <h2>Inventário por QR Code</h2>
-            <p>Abra uma sessão separada para conferir o estoque físico sem alterar o banco de dados.</p>
+            <p>Crie uma fotografia temporária, confira o estoque físico e confronte encontrados, faltas e quantidades antes de atualizar a lista oficial.</p>
           </div>
           <button className="inventory-entry-button" type="button" onClick={openInventory} disabled={loading}>
             <span aria-hidden="true">▦</span>
