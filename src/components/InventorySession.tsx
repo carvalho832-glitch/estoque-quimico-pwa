@@ -152,6 +152,41 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   }, [session]);
 
+  // Reconcile rows that were unknown when the inventory started but were
+  // registered afterwards. This preserves the physical count and allows the
+  // current inventory to be completed without starting over.
+  useEffect(() => {
+    if (!open || !products.length) return;
+
+    setSession((current) => {
+      if (current.status === 'ready') return current;
+
+      let changed = false;
+      const rows = current.rows.map((row) => {
+        if (row.registeredAtStart || row.countedQuantity <= 0) return row;
+
+        const registeredProduct = products.find(
+          (product) => normalize(product.ecode) === normalize(row.ecode)
+            && normalize(product.batch) === normalize(row.batch),
+        );
+        if (!registeredProduct) return row;
+
+        changed = true;
+        return {
+          ...row,
+          productId: registeredProduct.id,
+          name: registeredProduct.name,
+          expiryDate: row.expiryDate || registeredProduct.expiryDate,
+          systemQuantity: registeredProduct.quantity,
+          registeredAtStart: true,
+          protectedInUse: productIsInUse(registeredProduct),
+        };
+      });
+
+      return changed ? { ...current, rows } : current;
+    });
+  }, [open, products]);
+
   useEffect(() => {
     if (!open) return undefined;
 
