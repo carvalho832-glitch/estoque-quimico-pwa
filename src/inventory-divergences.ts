@@ -1,6 +1,6 @@
 import './inventory-divergences.css';
 
-const STORAGE_KEY = 'quimstock-temporary-inventory-v1';
+const STORAGE_KEY = 'quimstock-temporary-inventory-v2';
 const boundCards = new WeakSet<HTMLElement>();
 
  type InventoryDivergenceRow = {
@@ -10,6 +10,8 @@ const boundCards = new WeakSet<HTMLElement>();
   batch?: string;
   systemQuantity?: number;
   countedQuantity?: number;
+  registeredAtStart?: boolean;
+  protectedInUse?: boolean;
 };
 
 function readInventoryRows(): InventoryDivergenceRow[] {
@@ -26,9 +28,12 @@ function readInventoryRows(): InventoryDivergenceRow[] {
 }
 
 function getDivergences(): InventoryDivergenceRow[] {
-  return readInventoryRows().filter((row) => (
-    Number(row.systemQuantity) !== Number(row.countedQuantity)
-  ));
+  return readInventoryRows().filter((row) => {
+    const countedQuantity = Number(row.countedQuantity) || 0;
+    if (row.protectedInUse) return false;
+    if (row.registeredAtStart === false) return countedQuantity > 0;
+    return Number(row.systemQuantity) !== countedQuantity;
+  });
 }
 
 function safeText(value: unknown, fallback: string): string {

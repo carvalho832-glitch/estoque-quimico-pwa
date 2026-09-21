@@ -26,8 +26,6 @@ import './edit-product-modal-fix';
 import './location-weather';
 import './inventory-divergences';
 import './shared-code-batch-registration';
-import './inventory-review-improvements';
-import './inventory-product-inline-hotfix';
 import './cloud-session-floating';
 
 const params = new URLSearchParams(window.location.search);
