@@ -2,10 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Capacitor } from '@capacitor/core';
 import App from './App';
-import AdminCloudStockRepair from './components/AdminCloudStockRepair';
-import AdminResetStock from './components/AdminResetStock';
 import AdminSettingsPortal from './components/AdminSettingsPortal';
-import AdminStockImport from './components/AdminStockImport';
 import CloudSession from './components/CloudSession';
 import InventoryFeature from './components/InventoryFeature';
 import Dashboard from './Dashboard';
@@ -40,9 +37,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <>
           <App />
           <InventoryFeature />
-          <AdminCloudStockRepair />
-          <AdminStockImport />
-          <AdminResetStock />
         </>
       )}
       <AdminSettingsPortal />
