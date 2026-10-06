@@ -47,7 +47,7 @@ export default function AdminCloudStockRepair() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    setHost(document.querySelector('.app-shell main'));
+    setHost(document.querySelector('.admin-maintenance-host') ?? document.querySelector('.app-shell main'));
   }, []);
 
   useEffect(() => {
