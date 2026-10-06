@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { exportOrShareProductsToExcel } from '../lib/excel';
+import AdminCloudStockRepair from './AdminCloudStockRepair';
+import AdminResetStock from './AdminResetStock';
+import AdminStockImport from './AdminStockImport';
 import { listProducts } from '../lib/db';
 import { changePin, ensurePinInitialized, verifyPin } from '../services/PinService';
 import {
@@ -402,6 +405,19 @@ export default function AdminSettingsPortal() {
                 <input ref={importInputRef} className="admin-hidden-input" type="file" accept="application/json,.json" onChange={(event) => void handleImportSettings(event)} />
               </article>
             </div>
+
+            <section className="admin-maintenance-section" aria-labelledby="admin-maintenance-title">
+              <div className="admin-maintenance-heading">
+                <span className="admin-settings-eyebrow">MANUTENÇÃO DO ESTOQUE</span>
+                <h3 id="admin-maintenance-title">Ferramentas administrativas</h3>
+                <p>Correção, reinício e restauração do estoque ficam reunidos aqui, fora da tela principal.</p>
+              </div>
+              <div className="admin-maintenance-host">
+                <AdminCloudStockRepair />
+                <AdminResetStock />
+                <AdminStockImport />
+              </div>
+            </section>
 
             {message && <p className="admin-settings-message" role="status">{message}</p>}
           </section>
