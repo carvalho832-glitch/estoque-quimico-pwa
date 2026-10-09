@@ -20,7 +20,7 @@
 }
 
 .stats-grid article.attention-alert-active::after {
-  content: '!';
+  content: '⚠';
   position: absolute;
   top: 12px;
   right: 12px;
@@ -28,9 +28,9 @@
   place-items: center;
   width: 25px;
   height: 25px;
-  border-radius: 50%;
-  color: #fff;
-  background: #dc2626;
+  border-radius: 7px;
+  color: #7c2d12;
+  background: #facc15;
   box-shadow: 0 0 0 5px rgba(220, 38, 38, 0.12);
   font-size: 0.82rem;
   font-weight: 950;
@@ -108,3 +108,15 @@
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14), 0 0 24px rgba(239, 68, 68, 0.22);
   }
 }
+
+/* Indicador de reposição na tela principal */
+.stats-grid article.low-stock-summary { position: relative; cursor: pointer; border: 1px solid rgba(217,119,6,.45); background: linear-gradient(145deg,#fff,#fff3d6); }
+.stats-grid article.low-stock-summary::after { content: '📦'; position: absolute; right: 14px; top: 12px; font-size: 1.35rem; }
+.stats-grid article.low-stock-summary > strong { color: #9a5708; }
+.stats-grid article.low-stock-summary > span { color: #87520e; font-weight: 800; }
+.stats-grid article.low-stock-summary > small { display: block; margin-top: 8px; padding-top: 7px; border-top: 1px solid #f3d9a2; color: #915d18; font-weight: 750; font-size: .65rem; }
+.stats-grid article.low-stock-summary:focus-visible { outline: 3px solid #f59e0b; outline-offset: 3px; }
+.low-stock-modal { border-color: #f3c979; }
+.low-stock-modal .attention-items-header { background: linear-gradient(145deg,#fff,#fff7e5); border-bottom-color: #f3e2bd; }
+.low-stock-modal .attention-items-header > div > span, .low-stock-modal .attention-items-header h2 { color: #995b10; }
+.low-stock-modal .attention-items-footer button { background: #b77912; }

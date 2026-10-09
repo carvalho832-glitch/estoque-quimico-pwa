@@ -7,6 +7,7 @@ import { formatDate, getExpiryLabel, getExpiryLevel } from './lib/expiry';
 import { readLabel } from './lib/ocr';
 import { parseInventoryQr, readInventoryQr } from './lib/qr';
 import type { InventoryQrData, Product, ProductDraft } from './types';
+import { getSettings, subscribeToSettings } from './services/SettingsService';
 
 const EMPTY_DRAFT: ProductDraft = {
   name: '',
@@ -62,6 +63,8 @@ export default function App() {
   const [ocrProgress, setOcrProgress] = useState<number | null>(null);
   const [ocrStatus, setOcrStatus] = useState('');
   const [message, setMessage] = useState('');
+  const [lowStockThreshold, setLowStockThreshold] = useState(() => getSettings().lowStockThreshold);
+  const [lowStockOpen, setLowStockOpen] = useState(false);
 
   async function refreshProducts() {
     setProducts(await listProducts());
@@ -72,6 +75,8 @@ export default function App() {
       .catch(() => setMessage('Não foi possível carregar o estoque local.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => subscribeToSettings((settings) => setLowStockThreshold(settings.lowStockThreshold)), []);
 
   useEffect(() => {
     return () => releasePreview(previewUrl);
@@ -111,6 +116,18 @@ export default function App() {
       inUse,
     };
   }, [products]);
+
+  const lowStockProducts = useMemo(() => {
+    const groups = new Map<string, { name: string; ecode: string; quantity: number; locations: Set<string> }>();
+    products.forEach((product) => {
+      const key = product.ecode.trim().toUpperCase();
+      const group = groups.get(key) ?? { name: product.name, ecode: product.ecode, quantity: 0, locations: new Set<string>() };
+      if (!productIsInUse(product)) group.quantity += Math.max(0, product.quantity);
+      if (product.location) group.locations.add(product.location);
+      groups.set(key, group);
+    });
+    return [...groups.values()].filter((item) => item.quantity <= lowStockThreshold).sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name, 'pt-BR'));
+  }, [products, lowStockThreshold]);
 
   function updateDraft<K extends keyof ProductDraft>(field: K, value: ProductDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -304,6 +321,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {lowStockOpen && <div className="attention-items-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLowStockOpen(false); }}><section className="attention-items-modal low-stock-modal" role="dialog" aria-modal="true" aria-labelledby="low-stock-title"><header className="attention-items-header"><div><span>CONTROLE DE REPOSIÇÃO</span><h2 id="low-stock-title">📦 Estoque baixo</h2><p>{lowStockProducts.length} produto(s) com até {lowStockThreshold} unidade(s) disponíveis.</p></div><button className="attention-items-close" type="button" aria-label="Fechar" onClick={() => setLowStockOpen(false)}>×</button></header><div className="attention-items-list">{lowStockProducts.length === 0 ? <p>Nenhum produto abaixo do limite configurado.</p> : lowStockProducts.map((item) => <article className="attention-item-card warning" key={item.ecode}><div className="attention-item-topline"><div><strong>{item.name}</strong><span>Ecode {item.ecode}</span></div><span className="attention-item-level warning">{item.quantity === 0 ? 'Sem estoque' : 'Repor'}</span></div><dl className="attention-item-data"><div><dt>Disponível</dt><dd>{item.quantity} unidade(s)</dd></div><div><dt>Limite configurado</dt><dd>{lowStockThreshold} unidade(s)</dd></div><div><dt>Local</dt><dd>{[...item.locations].join(', ') || 'Não informado'}</dd></div></dl></article>)}</div><footer className="attention-items-footer"><button type="button" onClick={() => setLowStockOpen(false)}>Fechar</button></footer></section></div>}
       {scannerOpen && <QrLiveScanner onDetected={handleLiveQr} onClose={() => setScannerOpen(false)} />}
 
       <header className="app-header">
@@ -321,6 +339,7 @@ export default function App() {
           <article><strong>{stats.units}</strong><span>Unidades</span></article>
           <article><strong>{stats.inUse}</strong><span>Em uso</span></article>
           <article><strong>{stats.attention}</strong><span>Atenção</span></article>
+          <article className="low-stock-summary" role="button" tabIndex={0} aria-haspopup="dialog" aria-label={`${lowStockProducts.length} produtos com estoque baixo. Ver detalhes`} onClick={() => setLowStockOpen(true)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setLowStockOpen(true); } }}><strong>{lowStockProducts.length}</strong><span>Estoque baixo</span><small>Toque para ver os produtos</small></article>
           <article className={stats.expired ? 'danger-card' : ''}><strong>{stats.expired}</strong><span>Vencidos</span></article>
         </section>
 

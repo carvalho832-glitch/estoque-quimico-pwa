@@ -232,12 +232,7 @@ export default function AdminSettingsPortal() {
   }
 
   function restoreBackup() {
-    close();
-    window.setTimeout(() => {
-      const panel = document.querySelector<HTMLElement>('.stock-import-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.location.assign('./');
-    }, 50);
+    document.querySelector<HTMLElement>('.stock-import-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function downloadSettings() {
@@ -405,6 +400,14 @@ export default function AdminSettingsPortal() {
                 <input ref={importInputRef} className="admin-hidden-input" type="file" accept="application/json,.json" onChange={(event) => void handleImportSettings(event)} />
               </article>
             </div>
+
+            <section className="admin-maintenance-section" aria-labelledby="quimstock-version-title">
+              <div className="admin-maintenance-heading">
+                <span className="admin-settings-eyebrow">SOBRE O APLICATIVO</span>
+                <h3 id="quimstock-version-title">QuimStock 1.3.6</h3>
+                <p>Versão Android 1.3.6 · Código 10. Inclui alertas visuais e consulta de estoque baixo.</p>
+              </div>
+            </section>
 
             <section className="admin-maintenance-section" aria-labelledby="admin-maintenance-title">
               <div className="admin-maintenance-heading">
