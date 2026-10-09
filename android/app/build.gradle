@@ -4,7 +4,7 @@ android {
     namespace = "br.com.quimstock.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "br.com.quimstock.app"
+        applicationId "br.com.quimstock.app.novo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 10
