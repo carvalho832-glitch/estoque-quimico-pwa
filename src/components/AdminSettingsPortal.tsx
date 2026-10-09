@@ -232,12 +232,7 @@ export default function AdminSettingsPortal() {
   }
 
   function restoreBackup() {
-    close();
-    window.setTimeout(() => {
-      const panel = document.querySelector<HTMLElement>('.stock-import-panel');
-      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.location.assign('./');
-    }, 50);
+    document.querySelector<HTMLElement>('.stock-import-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function downloadSettings() {
