@@ -7,6 +7,7 @@ import InventoryManualEntry, {
   MANUAL_ENTRY_REASON_LABELS,
   type ManualEntryReason,
   type ManualInventoryEntry,
+  type PendingInventoryLot,
 } from './InventoryManualEntry';
 import InventoryQrScanner from './InventoryQrScanner';
 import './InventorySession.css';
@@ -143,6 +144,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
   const [message, setMessage] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [resolvingRowId, setResolvingRowId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const productsById = useMemo(
@@ -159,6 +161,19 @@ export default function InventorySession({ open, products, onClose }: InventoryS
     () => products.filter((product) => snapshotProductIds.has(product.id)),
     [products, snapshotProductIds],
   );
+
+  const pendingLot = useMemo<PendingInventoryLot | undefined>(() => {
+    const row = session.rows.find((item) => item.productId === resolvingRowId);
+    if (!row || row.registeredAtStart || row.countedQuantity <= 0) return undefined;
+    return {
+      productId: row.productId,
+      ecode: row.ecode,
+      batch: row.batch,
+      expiryDate: row.expiryDate,
+      location: row.location,
+      countedQuantity: row.countedQuantity,
+    };
+  }, [session.rows, resolvingRowId]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
@@ -270,6 +285,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
       `Fotografia do estoque criada com ${snapshotRows.length} lote(s). Agora as leituras representam o que foi encontrado fisicamente.`,
     );
     setManualEntryOpen(false);
+    setResolvingRowId(null);
     setScannerOpen(true);
   }
 
@@ -359,6 +375,38 @@ export default function InventorySession({ open, products, onClose }: InventoryS
   }
 
   function addManualProduct(entry: ManualInventoryEntry): boolean {
+    if (entry.kind === 'resolve-pending') {
+      const base = productsById.get(entry.baseProductId);
+      const row = session.rows.find((item) => item.productId === entry.productId);
+      const location = entry.location.trim();
+      const expiry = entry.expiryDate;
+      if (!base || !snapshotProductIds.has(base.id) || !row || row.registeredAtStart
+        || row.countedQuantity <= 0 || normalize(base.ecode) !== normalize(row.ecode)
+        || normalize(entry.batch) !== normalize(row.batch)) {
+        setMessage('Não foi possível identificar o lote pendente e o produto de referência do mesmo E-code.');
+        return false;
+      }
+      if (!location || !/^\d{4}-\d{2}-\d{2}$/.test(expiry) || Number.isNaN(Date.parse(expiry))
+        || new Date(expiry).toISOString().slice(0, 10) !== expiry) {
+        setMessage('Informe validade e prateleira válidas antes de resolver o lote.');
+        return false;
+      }
+      const duplicate = session.rows.some((item) => item.productId !== row.productId
+        && normalize(item.ecode) === normalize(row.ecode)
+        && normalize(item.batch) === normalize(row.batch));
+      if (duplicate) {
+        setMessage('Existe outra linha com esse E-code e lote. Revise antes de continuar.');
+        return false;
+      }
+      setSession((current) => ({
+        ...current,
+        rows: current.rows.map((item) => item.productId === row.productId
+          ? { ...item, name: base.name, newLotSourceId: base.id, expiryDate: expiry, location }
+          : item),
+      }));
+      setMessage(`Lote ${row.batch} regularizado: ${row.countedQuantity} unidade(s) já lida(s) foram preservadas. Agora está pronto para o cadastro ao concluir o inventário.`);
+      return true;
+    }
     const productId = entry.kind === 'existing' ? entry.productId : entry.baseProductId;
     const product = productsById.get(productId);
     if (!product || !snapshotProductIds.has(productId)) {
@@ -497,6 +545,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
     setScannerOpen(false);
     setManualEntryOpen(false);
+    setResolvingRowId(null);
     setSession((current) => ({ ...current, status: 'review' }));
     setMessage('Leitura finalizada. Revise encontrados, divergências e itens não encontrados antes de concluir.');
   }
@@ -519,6 +568,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
     setScannerOpen(false);
     setManualEntryOpen(false);
+    setResolvingRowId(null);
     setSession(EMPTY_SESSION);
     window.localStorage.removeItem(STORAGE_KEY);
     setMessage('Inventário temporário cancelado. Nenhum dado do estoque oficial foi modificado.');
@@ -660,9 +710,11 @@ export default function InventorySession({ open, products, onClose }: InventoryS
 
       {manualEntryOpen && session.status !== 'ready' && (
         <InventoryManualEntry
+          key={resolvingRowId ?? 'manual-add'}
           products={manualEntryProducts}
+          pendingLot={pendingLot}
           onAdd={addManualProduct}
-          onClose={() => setManualEntryOpen(false)}
+          onClose={() => { setManualEntryOpen(false); setResolvingRowId(null); }}
         />
       )}
 
@@ -743,12 +795,12 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                   </strong>
                   <span>
                     {unregisteredCount
-                      ? 'Complete os dados dos lotes não cadastrados antes de concluir.'
+                      ? 'Na tabela, toque em “Completar cadastro” em cada lote não cadastrado. As leituras existentes serão mantidas.'
                       : `Quantidades divergentes serão ajustadas. ${newLotCount} lote(s) novo(s) serão cadastrados após confirmação. ${protectedInUseCount} lote(s) Em uso serão preservados.`}
                   </span>
                 </div>
                 <div className="inventory-review-manual">
-                  <button className="inventory-manual-open" type="button" onClick={() => setManualEntryOpen(true)} disabled={updating}>
+                  <button className="inventory-manual-open" type="button" onClick={() => { setResolvingRowId(null); setManualEntryOpen(true); }} disabled={updating}>
                     Adicionar item esquecido
                   </button>
                 </div>
@@ -787,9 +839,21 @@ export default function InventorySession({ open, products, onClose }: InventoryS
                             {row.protectedInUse ? (
                               <span className="inventory-source-badge manual">Em uso · preservado</span>
                             ) : !row.registeredAtStart ? (
-                              <span className="inventory-source-badge manual">
-                                {isNewLotReady(row, productsById) ? 'Novo lote · pendente' : 'Não cadastrado'}
-                              </span>
+                              <div className="inventory-pending-actions">
+                                <span className="inventory-source-badge manual">
+                                  {isNewLotReady(row, productsById) ? 'Novo lote · pendente' : 'Não cadastrado'}
+                                </span>
+                                {!isNewLotReady(row, productsById) && row.countedQuantity > 0 && (
+                                  <button
+                                    className="inventory-resolve-action"
+                                    type="button"
+                                    disabled={updating}
+                                    onClick={() => { setResolvingRowId(row.productId); setManualEntryOpen(true); }}
+                                  >
+                                    Completar cadastro
+                                  </button>
+                                )}
+                              </div>
                             ) : row.countedQuantity === 0 ? (
                               <span className="inventory-source-badge manual">Não encontrado</span>
                             ) : (
@@ -863,7 +927,7 @@ export default function InventorySession({ open, products, onClose }: InventoryS
               onClick={() => void updateStock()}
               disabled={!canUpdate}
               title={unregisteredCount
-                ? 'Resolva os materiais não cadastrados antes de concluir'
+                ? 'Toque em Completar cadastro nos lotes não cadastrados antes de concluir'
                 : 'Aplicar a conferência completa ao estoque oficial'}
             >
               {updating ? 'Aplicando...' : 'Concluir inventário'}
