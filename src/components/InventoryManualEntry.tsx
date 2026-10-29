@@ -9,48 +9,102 @@ export const MANUAL_ENTRY_REASON_LABELS: Record<ManualEntryReason, string> = {
   'missing-qr': 'Produto sem QR Code',
 };
 
+export type ManualInventoryEntry =
+  | { kind: 'existing'; productId: string; quantity: number; reason: ManualEntryReason }
+  | {
+      kind: 'new-lot';
+      baseProductId: string;
+      batch: string;
+      expiryDate: string;
+      location: string;
+      quantity: number;
+      reason: ManualEntryReason;
+    };
+
 type InventoryManualEntryProps = {
   products: Product[];
-  onAdd: (productId: string, quantity: number, reason: ManualEntryReason) => void;
+  onAdd: (entry: ManualInventoryEntry) => boolean;
   onClose: () => void;
 };
 
 function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase('pt-BR');
+  return value.trim().toLocaleUpperCase('pt-BR');
 }
 
 export default function InventoryManualEntry({ products, onAdd, onClose }: InventoryManualEntryProps) {
   const [query, setQuery] = useState('');
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [mode, setMode] = useState<'existing' | 'new-lot'>('existing');
+  const [newBatch, setNewBatch] = useState('');
+  const [newExpiryDate, setNewExpiryDate] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState<ManualEntryReason>('damaged-qr');
   const [message, setMessage] = useState('');
 
   const filteredProducts = useMemo(() => {
     const term = normalize(query);
     if (!term) return products;
-
     return products.filter((product) => (
       [product.name, product.ecode, product.batch, product.location]
         .join(' ')
-        .toLocaleLowerCase('pt-BR')
+        .toLocaleUpperCase('pt-BR')
         .includes(term)
     ));
   }, [products, query]);
 
   const selectedProduct = products.find((product) => product.id === selectedProductId);
+  const quantityIsValid = /^[1-9]\d*$/.test(quantity) && Number.isSafeInteger(Number(quantity));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 0));
+    if (!quantityIsValid) {
+      setMessage('Informe uma quantidade inteira maior que zero.');
+      return;
+    }
+    const safeQuantity = Number(quantity);
 
     if (!selectedProduct) {
-      setMessage('Selecione o produto e o lote corretos antes de adicionar.');
+      setMessage('Selecione o produto de referência antes de adicionar.');
       return;
     }
 
-    onAdd(selectedProduct.id, safeQuantity, reason);
-    onClose();
+    if (mode === 'existing') {
+      if (onAdd({ kind: 'existing', productId: selectedProduct.id, quantity: safeQuantity, reason })) onClose();
+      return;
+    }
+
+    const batch = normalize(newBatch);
+    const location = newLocation.trim();
+    if (!batch || !newExpiryDate || !location) {
+      setMessage('Informe o número do novo lote, a data de validade e a prateleira.');
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(newExpiryDate)
+      || Number.isNaN(Date.parse(newExpiryDate))
+      || new Date(newExpiryDate).toISOString().slice(0, 10) !== newExpiryDate) {
+      setMessage('Informe uma data de validade válida.');
+      return;
+    }
+
+    const alreadyRegistered = products.some((product) => (
+      normalize(product.ecode) === normalize(selectedProduct.ecode)
+      && normalize(product.batch) === batch
+    ));
+    if (alreadyRegistered) {
+      setMessage('Esse lote já está cadastrado. Selecione “Lote existente” para contá-lo sem duplicar.');
+      return;
+    }
+
+    if (onAdd({
+      kind: 'new-lot',
+      baseProductId: selectedProduct.id,
+      batch,
+      expiryDate: newExpiryDate,
+      location,
+      quantity: safeQuantity,
+      reason,
+    })) onClose();
   }
 
   return (
@@ -75,17 +129,41 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
                 setSelectedProductId('');
                 setMessage('');
               }}
-              placeholder="Ex.: nome, 8679400 ou lote C032408071"
+              placeholder="Ex.: nome, 8252886 ou lote C032408071"
               autoFocus
             />
           </label>
 
+          <fieldset className="inventory-manual-mode">
+            <legend>Como deseja contar?</legend>
+            <label>
+              <input
+                type="radio"
+                name="manual-lot-mode"
+                checked={mode === 'existing'}
+                onChange={() => { setMode('existing'); setMessage(''); }}
+              />
+              Lote existente
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="manual-lot-mode"
+                checked={mode === 'new-lot'}
+                onChange={() => { setMode('new-lot'); setMessage(''); }}
+              />
+              + Cadastrar lote novo
+            </label>
+          </fieldset>
+
           <label className="inventory-manual-field">
-            <span>Produto e lote *</span>
+            <span>{mode === 'new-lot' ? 'Produto de referência *' : 'Produto e lote *'}</span>
             <select
               value={selectedProductId}
               onChange={(event) => {
-                setSelectedProductId(event.target.value);
+                const productId = event.target.value;
+                setSelectedProductId(productId);
+                setNewLocation(products.find((product) => product.id === productId)?.location ?? '');
                 setMessage('');
               }}
               required
@@ -101,7 +179,7 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
 
           {!filteredProducts.length && (
             <p className="inventory-manual-empty">
-              Nenhum registro encontrado. Cadastre primeiro o produto e o lote no QuimStock.
+              Nenhum produto encontrado. Cadastre o material primeiro no QuimStock.
             </p>
           )}
 
@@ -109,9 +187,43 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
             <article className="inventory-manual-selection">
               <strong>{selectedProduct.name}</strong>
               <span>E-code: {selectedProduct.ecode}</span>
-              <span>Lote: {selectedProduct.batch}</span>
+              <span>Lote cadastrado: {selectedProduct.batch}</span>
               <span>Quantidade atual: {selectedProduct.quantity}</span>
             </article>
+          )}
+
+          {mode === 'new-lot' && (
+            <div className="inventory-manual-new-lot">
+              <p>
+                O registro acima serve apenas para identificar o produto.
+                O lote antigo <strong>não será alterado</strong>. O novo lote ficará pendente até concluir o inventário.
+              </p>
+              <label className="inventory-manual-field">
+                <span>Número do lote novo *</span>
+                <input
+                  value={newBatch}
+                  onChange={(event) => { setNewBatch(event.target.value.toLocaleUpperCase('pt-BR')); setMessage(''); }}
+                  placeholder="Digite o lote impresso na lata"
+                  autoCapitalize="characters"
+                  required
+                />
+              </label>
+              <div className="inventory-manual-grid">
+                <label className="inventory-manual-field">
+                  <span>Validade da lata nova *</span>
+                  <input type="date" value={newExpiryDate} onChange={(event) => setNewExpiryDate(event.target.value)} required />
+                </label>
+                <label className="inventory-manual-field">
+                  <span>Prateleira *</span>
+                  <input
+                    value={newLocation}
+                    onChange={(event) => setNewLocation(event.target.value)}
+                    placeholder="Ex.: Prateleira 01"
+                    required
+                  />
+                </label>
+              </div>
+            </div>
           )}
 
           <div className="inventory-manual-grid">
@@ -123,11 +235,11 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
                 min="1"
                 step="1"
                 value={quantity}
-                onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+                onChange={(event) => { setQuantity(event.target.value); setMessage(''); }}
+                onFocus={(event) => event.currentTarget.select()}
                 required
               />
             </label>
-
             <label className="inventory-manual-field">
               <span>Motivo *</span>
               <select value={reason} onChange={(event) => setReason(event.target.value as ManualEntryReason)}>
@@ -137,11 +249,13 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
             </label>
           </div>
 
-          {message && <p className="inventory-manual-message" role="status">{message}</p>}
+          {message && <p className="inventory-manual-message" role="alert">{message}</p>}
 
           <footer className="inventory-manual-actions">
             <button className="inventory-manual-cancel" type="button" onClick={onClose}>Voltar</button>
-            <button className="inventory-manual-confirm" type="submit" disabled={!selectedProduct}>Adicionar à contagem</button>
+            <button className="inventory-manual-confirm" type="submit" disabled={!selectedProduct || !quantityIsValid}>
+              {mode === 'new-lot' ? 'Adicionar lote à contagem' : 'Adicionar à contagem'}
+            </button>
           </footer>
         </form>
       </section>

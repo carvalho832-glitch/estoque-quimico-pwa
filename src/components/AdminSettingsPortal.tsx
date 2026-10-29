@@ -404,8 +404,8 @@ export default function AdminSettingsPortal() {
             <section className="admin-maintenance-section" aria-labelledby="quimstock-version-title">
               <div className="admin-maintenance-heading">
                 <span className="admin-settings-eyebrow">SOBRE O APLICATIVO</span>
-                <h3 id="quimstock-version-title">QuimStock 1.3.6</h3>
-                <p>Versão Android 1.3.6 · Código 10. Inclui alertas visuais e consulta de estoque baixo.</p>
+                <h3 id="quimstock-version-title">QuimStock 1.3.7</h3>
+                <p>Versão Android 1.3.6 · Código 11. Inclui alertas visuais e consulta de estoque baixo.</p>
               </div>
             </section>
 
