@@ -389,3 +389,33 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* A review action for QR lots that still need their metadata. */
+.inventory-pending-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.inventory-resolve-action {
+  min-height: 34px;
+  border: 1px solid #9bbfce;
+  border-radius: 9px;
+  padding: 6px 10px;
+  color: #174f68;
+  background: #e7f3f8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.inventory-resolve-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.inventory-resolve-action:focus-visible {
+  outline: 3px solid #5f91a8;
+  outline-offset: 2px;
+}
