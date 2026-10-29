@@ -38,7 +38,7 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
   const [newBatch, setNewBatch] = useState('');
   const [newExpiryDate, setNewExpiryDate] = useState('');
   const [newLocation, setNewLocation] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState('1');
   const [reason, setReason] = useState<ManualEntryReason>('damaged-qr');
   const [message, setMessage] = useState('');
 
@@ -54,10 +54,15 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
   }, [products, query]);
 
   const selectedProduct = products.find((product) => product.id === selectedProductId);
+  const quantityIsValid = /^[1-9]\d*$/.test(quantity) && Number.isSafeInteger(Number(quantity));
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 0));
+    if (!quantityIsValid) {
+      setMessage('Informe uma quantidade inteira maior que zero.');
+      return;
+    }
+    const safeQuantity = Number(quantity);
 
     if (!selectedProduct) {
       setMessage('Selecione o produto de referência antes de adicionar.');
@@ -230,7 +235,8 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
                 min="1"
                 step="1"
                 value={quantity}
-                onChange={(event) => setQuantity(Math.max(1, Number(event.target.value) || 1))}
+                onChange={(event) => { setQuantity(event.target.value); setMessage(''); }}
+                onFocus={(event) => event.currentTarget.select()}
                 required
               />
             </label>
@@ -247,7 +253,7 @@ export default function InventoryManualEntry({ products, onAdd, onClose }: Inven
 
           <footer className="inventory-manual-actions">
             <button className="inventory-manual-cancel" type="button" onClick={onClose}>Voltar</button>
-            <button className="inventory-manual-confirm" type="submit" disabled={!selectedProduct}>
+            <button className="inventory-manual-confirm" type="submit" disabled={!selectedProduct || !quantityIsValid}>
               {mode === 'new-lot' ? 'Adicionar lote à contagem' : 'Adicionar à contagem'}
             </button>
           </footer>
